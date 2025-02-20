@@ -34,12 +34,3 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-const sequelize = require('./config/database');
-const User = require('./models/User');
-
-sequelize.sync({ force: false })
-  .then(() => {
-    console.log('Database & tables created!');
-  })
-  .catch(err => console.error('Error syncing database:', err));
-

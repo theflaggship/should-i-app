@@ -1,60 +1,60 @@
 // src/screens/Auth/LoginScreen.js
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
-import { login as loginApi } from '../../services/authService';
 import { AuthContext } from '../../context/AuthContext';
-import globalStyles from '../../styles/globalStyles';
+import { login as loginApi } from '../../services/authService';
 import colors from '../../styles/colors';
 
 const LoginScreen = ({ navigation }) => {
+  const { login } = useContext(AuthContext);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useContext(AuthContext);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
   const handleLogin = async () => {
     try {
       const data = await loginApi(username, password);
-      // Save user and token in context (adjust based on your API response)
-      login(data.user, data.token);
+      login(data.user, data.token); // Save user + token in context
     } catch (err) {
-      setError('Login failed. Please check your credentials.');
+      setError('Invalid credentials');
     }
   };
 
   return (
-    <View style={globalStyles.container}>
-      <Text style={globalStyles.title}>Login</Text>
-      {error ? <Text style={{ color: colors.error, textAlign: 'center' }}>{error}</Text> : null}
+    <View style={styles.container}>
+      <Text style={styles.title}>Should I? - Login</Text>
+      {error && <Text style={styles.error}>{error}</Text>}
       <TextInput
         style={styles.input}
         placeholder="Username"
+        value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
-        value={username}
       />
       <TextInput
         style={styles.input}
         placeholder="Password"
+        value={password}
         onChangeText={setPassword}
         secureTextEntry
-        value={password}
       />
       <Button title="Login" onPress={handleLogin} color={colors.primary} />
-      <Button title="Don't have an account? Sign Up" onPress={() => navigation.navigate('Signup')} />
+      <Button title="Go to Signup" onPress={() => navigation.navigate('Signup')} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', padding: 16 },
+  title: { fontSize: 24, marginBottom: 16, textAlign: 'center' },
   input: {
     borderWidth: 1,
     borderColor: colors.dark,
-    padding: 12,
-    marginVertical: 8,
+    marginBottom: 12,
+    padding: 10,
     borderRadius: 4,
-    fontFamily: 'Roboto'
-  }
+  },
+  error: { color: 'red', marginBottom: 12, textAlign: 'center' },
 });
 
 export default LoginScreen;

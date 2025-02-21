@@ -1,14 +1,11 @@
-require('dotenv').config();  // This line loads the .env file
-const { Sequelize } = require('sequelize');
+// config/database.js
+require('dotenv').config(); // Loads .env variables
 
-const sequelize = new Sequelize(
-  'should_i_app',   // Should be "should_i_app"
-  process.env.DB_USER,
-  process.env.DB_PASS,
-  {
-    host: process.env.DB_HOST || 'localhost',
-    dialect: 'postgres',
-  }
-);
-
-module.exports = sequelize;
+module.exports = {
+  username: process.env.DB_USER || 'should_i_admin',
+  password: process.env.DB_PASS || '4options1vote',
+  database: process.env.DB_NAME || 'should_i_app',
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  dialect: process.env.DB_DIALECT || 'postgres'
+};

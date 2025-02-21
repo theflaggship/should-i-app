@@ -2,14 +2,13 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { signup as signupApi } from '../../services/authService';
-import globalStyles from '../../styles/globalStyles';
 import colors from '../../styles/colors';
 
 const SignupScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
-  const [email, setEmail]     = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]     = useState('');
+  const [error, setError]       = useState(null);
 
   const handleSignup = async () => {
     try {
@@ -21,46 +20,48 @@ const SignupScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
-      <Text style={globalStyles.title}>Sign Up</Text>
-      {error ? <Text style={{ color: colors.error, textAlign: 'center' }}>{error}</Text> : null}
+    <View style={styles.container}>
+      <Text style={styles.title}>Should I? - Signup</Text>
+      {error && <Text style={styles.error}>{error}</Text>}
       <TextInput
         style={styles.input}
         placeholder="Username"
+        value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
-        value={username}
       />
       <TextInput
         style={styles.input}
         placeholder="Email"
+        value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        value={email}
       />
       <TextInput
         style={styles.input}
         placeholder="Password"
+        value={password}
         onChangeText={setPassword}
         secureTextEntry
-        value={password}
       />
       <Button title="Sign Up" onPress={handleSignup} color={colors.primary} />
-      <Button title="Already have an account? Login" onPress={() => navigation.navigate('Login')} />
+      <Button title="Go to Login" onPress={() => navigation.navigate('Login')} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', padding: 16 },
+  title: { fontSize: 24, marginBottom: 16, textAlign: 'center' },
   input: {
     borderWidth: 1,
     borderColor: colors.dark,
-    padding: 12,
-    marginVertical: 8,
+    marginBottom: 12,
+    padding: 10,
     borderRadius: 4,
-    fontFamily: 'Roboto'
-  }
+  },
+  error: { color: 'red', marginBottom: 12, textAlign: 'center' },
 });
 
 export default SignupScreen;

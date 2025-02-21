@@ -11,10 +11,10 @@ const validate = require('../validators/validate');
 router.post('/', verifyToken, createPollValidation, validate, pollController.createPoll);
 
 // Retrieve all polls
-router.get('/', verifyToken, pollController.getAllPolls);
+router.get('/', pollController.getAllPolls);
 
 // Retrieve a single poll by its ID
-router.get('/:id', verifyToken, pollController.getPollById);
+router.get('/:id', pollController.getPollById);
 
 // Update a poll by its ID
 router.put('/:id', verifyToken, updatePollValidation, validate, pollController.updatePoll);

@@ -1,40 +1,93 @@
+// controllers/authController.js
 const { User } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// POST /api/auth/signup
-exports.signup = async (req, res, next) => {
+/**
+ * POST /api/auth/signup
+ * Body: { username, email, password }
+ */
+exports.signup = async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    // Hash the password before storing it
+
+    // Basic validation
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if username already exists
+    const existingUser = await User.findOne({ where: { username } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already taken' });
+    }
+
+    // Hash the password before storing
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await User.create({ username, email, password: hashedPassword });
-    res.status(201).json({ message: 'User created successfully', user: newUser });
+
+    // Create new user
+    const newUser = await User.create({
+      username,
+      email,
+      password: hashedPassword,
+      // Optionally set profilePicture or other fields
+    });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        // Exclude the hashed password in the response
+      },
+    });
   } catch (error) {
-    next(error);
+    console.error('Signup error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// POST /api/auth/login
-exports.login = async (req, res, next) => {
+/**
+ * POST /api/auth/login
+ * Body: { username, password }
+ */
+exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    // Basic validation
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    // Find user by username
     const user = await User.findOne({ where: { username } });
     if (!user) {
-      const err = new Error('User not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'User not found' });
     }
+
+    // Compare plain text password with stored hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      const err = new Error('Invalid credentials');
-      err.status = 401;
-      return next(err);
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    // Generate JWT token valid for 1 hour
+
+    // Create a JWT token
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ message: 'Login successful', token, user: { id: user.id, username: user.username } });
+
+    res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        // any other user fields you want to include
+      },
+    });
   } catch (error) {
-    next(error);
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message });
   }
 };

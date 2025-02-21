@@ -1,6 +1,8 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const Poll = require('./Poll');
 
+module.exports = (sequelize, DataTypes) => {
 const PollOption = sequelize.define('PollOption', {
     pollId: {
       type: DataTypes.INTEGER,
@@ -18,4 +20,5 @@ const PollOption = sequelize.define('PollOption', {
     // Additional model options can go here
   });
   
-  module.exports = PollOption;
+    return PollOption;
+  };

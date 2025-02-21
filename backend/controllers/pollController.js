@@ -1,4 +1,4 @@
-const { Poll, PollOption } = require('../models');
+const { Poll, User, PollOption } = require('../models');
 
 // POST /api/polls - Create a new poll
 exports.createPoll = async (req, res, next) => {
@@ -25,8 +25,36 @@ exports.createPoll = async (req, res, next) => {
 // GET /api/polls - Retrieve all polls
 exports.getAllPolls = async (req, res, next) => {
   try {
-    const polls = await Poll.findAll();
-    res.status(200).json(polls);
+    const polls = await Poll.findAll({
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'username', 'profilePicture']
+        },
+        {
+          model: PollOption,
+          attributes: ['id', 'optionText']
+        }
+      ]
+    });
+
+    const data = polls.map((poll) => ({
+      id: poll.id,
+      question: poll.question,
+      // If poll.User is missing, fallback to "Unknown"
+      user: {
+        username: poll.User?.username || 'Unknown',
+        profilePicture: poll.User?.profilePicture || null
+      },
+      // Convert poll.PollOptions to { id, text } array
+      options: poll.PollOptions?.map((opt) => ({
+        id: opt.id,
+        text: opt.optionText
+      })) || []
+    }));
+
+
+    res.status(200).json(data);
   } catch (error) {
     next(error);
   }

@@ -16,6 +16,11 @@ const PollOption = sequelize.define('PollOption', {
       type: DataTypes.STRING,
       allowNull: true, // URL for the image option, if applicable
     },
+    votes: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0, // Ensure default is set to 0
+    }
   }, {
     // Additional model options can go here
   });

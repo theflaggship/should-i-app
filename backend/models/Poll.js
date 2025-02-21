@@ -10,7 +10,9 @@ module.exports = (sequelize, DataTypes) => {
     allowComments: { type: DataTypes.BOOLEAN, defaultValue: true },
     expirationDate: { type: DataTypes.DATE },
     isImagePoll: { type: DataTypes.BOOLEAN, defaultValue: false },
-  }, {});
+  }, {
+    timestamps: true
+  });
 
   return Poll;
 };

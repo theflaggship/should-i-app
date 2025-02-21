@@ -33,26 +33,26 @@ exports.getAllPolls = async (req, res, next) => {
         },
         {
           model: PollOption,
-          attributes: ['id', 'optionText']
+          attributes: ['id', 'optionText', 'votes'] // Ensure votes field is included
         }
-      ]
+      ],
+      order: [['createdAt', 'DESC']]
     });
 
     const data = polls.map((poll) => ({
       id: poll.id,
       question: poll.question,
-      // If poll.User is missing, fallback to "Unknown"
+      createdAt: poll.createdAt,
       user: {
         username: poll.User?.username || 'Unknown',
         profilePicture: poll.User?.profilePicture || null
       },
-      // Convert poll.PollOptions to { id, text } array
       options: poll.PollOptions?.map((opt) => ({
         id: opt.id,
-        text: opt.optionText
+        text: opt.optionText,
+        votes: opt.votes || 0 // Ensure votes default to 0 if undefined
       })) || []
     }));
-
 
     res.status(200).json(data);
   } catch (error) {
@@ -63,13 +63,38 @@ exports.getAllPolls = async (req, res, next) => {
 // GET /api/polls/:id - Retrieve a specific poll by ID
 exports.getPollById = async (req, res, next) => {
   try {
-    const poll = await Poll.findByPk(req.params.id);
+    const poll = await Poll.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'username', 'profilePicture']
+        },
+        {
+          model: PollOption,
+          attributes: ['id', 'optionText']
+        }
+      ]
+    });
+
     if (!poll) {
       const err = new Error('Poll not found');
       err.status = 404;
       return next(err);
     }
-    res.status(200).json(poll);
+
+    res.status(200).json({
+      id: poll.id,
+      question: poll.question,
+      createdAt: poll.createdAt, // Include createdAt field
+      user: {
+        username: poll.User?.username || 'Unknown',
+        profilePicture: poll.User?.profilePicture || null
+      },
+      options: poll.PollOptions?.map((opt) => ({
+        id: opt.id,
+        text: opt.optionText
+      })) || []
+    });
   } catch (error) {
     next(error);
   }

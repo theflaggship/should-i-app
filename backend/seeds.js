@@ -1,4 +1,3 @@
-// seed.js
 const { sequelize, User, Poll, PollOption } = require('./models'); // Import from models/index.js
 const bcrypt = require('bcryptjs');
 
@@ -52,7 +51,7 @@ async function seed() {
     await sequelize.sync({ force: true });
     console.log('Database synced (force: true).');
 
-    // 2. Create 10 users with hashed password
+    // 2. Create 5 users with hashed passwords
     const users = [];
     for (let i = 1; i <= 5; i++) {
       const hashedPassword = await bcrypt.hash('password', 10);
@@ -64,7 +63,7 @@ async function seed() {
       });
       users.push(user);
     }
-    console.log('Created 10 users with hashed passwords.');
+    console.log('Created 5 users with hashed passwords.');
 
     // 3. For each user, create 3 polls
     for (let user of users) {
@@ -81,17 +80,17 @@ async function seed() {
           allowComments: true,
         });
 
-        // Shuffle the relevant options
+        // Shuffle and pick options (2 to 4)
         const shuffledOpts = [...options].sort(() => 0.5 - Math.random());
-        // Decide how many options (2 to 4)
         const numberOfOptions = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
         const chosenOpts = shuffledOpts.slice(0, numberOfOptions);
 
-        // Create PollOption records
+        // Create PollOption records with random votes
         for (let optText of chosenOpts) {
           await PollOption.create({
             pollId: newPoll.id,
             optionText: optText,
+            votes: Math.floor(Math.random() * 10), // Assign 0-9 random votes
           });
         }
       }

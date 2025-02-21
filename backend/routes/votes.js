@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const voteController = require('../controllers/voteController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const voteController = require('../controllers/voteControllers');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Protected endpoints for voting actions
 router.post('/', verifyToken, voteController.castVote);

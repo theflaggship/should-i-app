@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pollController = require('../controllers/pollController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const { createPollValidation, updatePollValidation } = require('../validators/pollValidation');  // <-- Import here
+const validate = require('../validators/validate');
 
 // All endpoints are protected with verifyToken
 

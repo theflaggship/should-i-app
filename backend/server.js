@@ -26,7 +26,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/categories', categoryRoutes);
 
 // Optional: Error handling middleware (after all routes)
-const errorHandler = require('./middleware/errorHandler');
+const errorHandler = require('./middlewares/errorHandler');
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;

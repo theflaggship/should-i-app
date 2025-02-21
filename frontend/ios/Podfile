@@ -1,15 +1,12 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
-require Pod::Executable.execute_command('node', ['-p',
-  'require.resolve(
-    "react-native/scripts/react_native_pods.rb",
-    {paths: [process.argv[1]]},
-  )', __dir__]).strip
+# Disable the new architecture (Fabric/TurboModules)
+ENV['RCT_NEW_ARCH_ENABLED'] = "0"
 
-platform :ios, min_ios_version_supported
-prepare_react_native_project!
+# Use a relative require to load React Native's pod helper methods
+require_relative '../node_modules/react-native/scripts/react_native_pods'
+
 
 linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
+if linkage
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
   use_frameworks! :linkage => linkage.to_sym
 end
@@ -19,17 +16,31 @@ target 'frontend' do
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
+end
 
-  post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
-    )
+post_install do |installer|
+  # Run React Native's post install steps with macCatalyst disabled.
+  react_native_post_install(installer, :mac_catalyst_enabled => false)
+  
+  # Adjust build settings for each target.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      # Allow non-modular includes
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      # Disable warnings for non-modular includes in framework modules
+      config.build_settings['CLANG_WARN_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'NO'
+      # Disable treating warnings as errors
+      config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+    end
+  end
+
+  # Remove any leading "export " prefixes from all .xcconfig files within Pods.
+  xcconfig_files = Dir.glob(File.join(installer.sandbox.root, 'Pods', 'Target Support Files', '**', '*.xcconfig'))
+  xcconfig_files.each do |file|
+    contents = File.read(file)
+    new_contents = contents.gsub(/^export\s+/, '')
+    File.write(file, new_contents)
   end
 end

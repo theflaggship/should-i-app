@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const followController = require('../controllers/followController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Protected endpoints for following/unfollowing
 router.post('/', verifyToken, followController.followUser);

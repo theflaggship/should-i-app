@@ -7,7 +7,6 @@ import { AuthContext } from '../context/AuthContext';
 
 const AppNavigator = () => {
   const { user } = useContext(AuthContext);
-
   return (
     <NavigationContainer>
       {user ? <MainTabNavigator /> : <AuthNavigator />}

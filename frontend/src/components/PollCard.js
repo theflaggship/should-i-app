@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVote } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
+import { MessageCircle } from "react-native-feather";
 import colors from '../styles/colors';
-import Icon from 'react-native-vector-icons/Feather';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
@@ -139,7 +139,7 @@ const PollCard = ({ poll, onVote }) => {
       </View>
       {poll.allowComments && (
         <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
-          <Icon name="message-circle" size={18} color="gray" style={styles.commentIcon} />
+          <MessageCircle width={18} color="gray" style={styles.commentIcon} />
           <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
         </TouchableOpacity>
       )}
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   optionContainer: {
     position: 'relative',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    // paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: colors.dark,
     borderRadius: 4,
@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 1,
+    marginLeft: 12,
   },
   selectedOptionBorder: {
     borderColor: '#c8f7c5',
@@ -220,6 +221,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'gray',
     fontWeight: '400',
+    marginRight: 12,
   },
   commentContainer: {
     flexDirection: 'row',
@@ -227,7 +229,7 @@ const styles = StyleSheet.create({
     marginTop: 10, // Spacing below last option
   },
   commentIcon: {
-    marginRight: 3, // ✅ Places the icon before the number
+    marginRight: 2,
   },
   commentCount: {
     fontSize: 14,

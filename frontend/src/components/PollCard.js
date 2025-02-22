@@ -149,7 +149,7 @@ const PollCard = ({ poll, onVote }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.pollBackground,
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: 6,

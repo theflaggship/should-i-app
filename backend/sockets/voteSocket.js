@@ -8,7 +8,7 @@ const setupVoteSocket = (wss) => {
     ws.on('message', async (rawMessage) => {
       try {
         // Parse the incoming data
-        const { userId, pollId, optionId } = JSON.parse(rawMessage);
+        const { userId, pollId, pollOptionId } = JSON.parse(rawMessage);
 
         if (!userId || !pollId) {
           console.error('Missing userId or pollId');
@@ -20,12 +20,12 @@ const setupVoteSocket = (wss) => {
 
         if (existingVote) {
           // User already voted in this poll
-          if (existingVote.optionId === optionId) {
+          if (existingVote.pollOptionId === pollOptionId) {
             // User tapped the same option → remove the vote (unvote)
             await existingVote.destroy();
 
             // Decrement that option's vote count
-            const sameOption = await PollOption.findByPk(optionId);
+            const sameOption = await PollOption.findByPk(pollOptionId);
             if (sameOption) {
               sameOption.votes = Math.max(sameOption.votes - 1, 0);
               await sameOption.save();
@@ -33,18 +33,18 @@ const setupVoteSocket = (wss) => {
           } else {
             // User changing vote to a different option
             // Decrement old option's count
-            const oldOption = await PollOption.findByPk(existingVote.optionId);
+            const oldOption = await PollOption.findByPk(existingVote.pollOptionId);
             if (oldOption) {
               oldOption.votes = Math.max(oldOption.votes - 1, 0);
               await oldOption.save();
             }
 
             // Update existing vote to new option
-            existingVote.optionId = optionId;
+            existingVote.pollOptionId = pollOptionId;
             await existingVote.save();
 
             // Increment new option's count
-            const newOption = await PollOption.findByPk(optionId);
+            const newOption = await PollOption.findByPk(pollOptionId);
             if (newOption) {
               newOption.votes += 1;
               await newOption.save();
@@ -52,10 +52,10 @@ const setupVoteSocket = (wss) => {
           }
         } else {
           // No existing vote, user is voting for the first time in this poll
-          await Vote.create({ userId, pollId, optionId });
+          await Vote.create({ userId, pollId, pollOptionId });
 
           // Increment that option's vote count
-          const option = await PollOption.findByPk(optionId);
+          const option = await PollOption.findByPk(pollOptionId);
           if (option) {
             option.votes += 1;
             await option.save();

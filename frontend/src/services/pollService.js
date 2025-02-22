@@ -42,9 +42,9 @@ export const connectWebSocket = (updatePollState) => {
 };
 
 // WebSocket: Send vote to backend
-export const sendVote = (userId, pollId, optionId) => {
+export const sendVote = (userId, pollId, pollOptionId) => {
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ userId, pollId, optionId }));
+    socket.send(JSON.stringify({ userId, pollId, pollOptionId }));
   } else {
     console.error('WebSocket is not connected.');
   }

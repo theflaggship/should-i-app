@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 80, // Navbar remains partially visible when scrolling
-    backgroundColor: colors.primary,
+    backgroundColor: colors.dark,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,

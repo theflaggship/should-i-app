@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVote } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircle } from "react-native-feather";
+import { MessageCircle, CheckCircle } from 'react-native-feather'; // ✅ Using both icons
 import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
@@ -19,7 +19,7 @@ const PollCard = ({ poll, onVote }) => {
 
   useEffect(() => {
     // Merge WebSocket updates into existing options while preserving text and order
-    setOptions((prevOptions) => 
+    setOptions((prevOptions) =>
       prevOptions.map((prevOption) => {
         const updatedOption = poll.options.find((opt) => opt.id === prevOption.id);
         return updatedOption
@@ -27,17 +27,17 @@ const PollCard = ({ poll, onVote }) => {
           : prevOption;
       })
     );
-    
+
     setTotalVotes(poll.options.reduce((sum, option) => sum + (option.votes || 0), 0));
   }, [poll]);
 
-  // Function to calculate percentage safely
+  // Calculate percentage safely
   const getVotePercentage = (optionVotes) => {
     if (!optionVotes || totalVotes === 0) return '0 Votes'; // Prevent NaN
     return `${Math.round((optionVotes / totalVotes) * 100)}%`;
   };
 
-  // Function to calculate elapsed time
+  // Calculate elapsed time
   const getTimeElapsed = (createdAt) => {
     if (!createdAt) return '';
     const pollDate = new Date(createdAt);
@@ -57,9 +57,10 @@ const PollCard = ({ poll, onVote }) => {
     return `${diffInYears}y`;
   };
 
+  // Handle voting logic
   const handleOptionPress = (optionId) => {
-    // If the user taps the same option again, remove the vote (unvote)
     if (userVote === optionId) {
+      // Unvote
       setUserVote(null);
       setOptions((prevOptions) =>
         prevOptions.map((opt) =>
@@ -67,14 +68,12 @@ const PollCard = ({ poll, onVote }) => {
         )
       );
     } else {
-      // The user is voting for a different option or voting for the first time
+      // Vote for a new option
       setOptions((prevOptions) =>
         prevOptions.map((opt) => {
           if (opt.id === optionId) {
-            // Increment votes on the newly chosen option
             return { ...opt, votes: opt.votes + 1 };
           } else if (opt.id === userVote) {
-            // Decrement votes on the previously chosen option
             return { ...opt, votes: Math.max(opt.votes - 1, 0) };
           }
           return opt;
@@ -82,19 +81,16 @@ const PollCard = ({ poll, onVote }) => {
       );
       setUserVote(optionId);
     }
-  
-    // Send the vote via WebSocket
-    // (No await/response because WebSockets don't return an immediate result)
+    // Send via WebSocket
     sendVote(user.id, poll.id, optionId);
   };
-  
-  
 
+  // Navigate to comments
   const handleCommentsPress = () => {
     if (poll.id) {
       navigation.navigate('PollDetails', { pollId: poll.id });
     }
-  };  
+  };
 
   return (
     <View style={styles.card}>
@@ -117,18 +113,17 @@ const PollCard = ({ poll, onVote }) => {
           return (
             <TouchableOpacity
               key={option.id}
-              style={[
-                styles.optionContainer,
-                isVoted && styles.selectedOptionBorder,
-              ]}
+              style={[styles.optionContainer, isVoted && styles.selectedOptionBorder]}
               onPress={() => handleOptionPress(option.id)}
             >
               <View style={[styles.fillBar, { width: percentage, backgroundColor: isVoted ? '#c8f7c5' : '#d3d3d3' }]} />
-              
               <View style={styles.optionContent}>
-                <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
-                  {option.text}
-                </Text>
+                <View style={styles.optionLeft}>
+                  {isVoted && <CheckCircle width={18} style={styles.checkIcon} />}
+                  <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
+                    {option.text}
+                  </Text>
+                </View>
                 <Text style={[styles.percentageText, isVoted && styles.selectedOptionText]}>
                   {percentage}
                 </Text>
@@ -137,19 +132,29 @@ const PollCard = ({ poll, onVote }) => {
           );
         })}
       </View>
-      {poll.allowComments && (
-        <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
-          <MessageCircle width={18} color="gray" style={styles.commentIcon} />
-          <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
-        </TouchableOpacity>
-      )}
+
+      {/* Bottom row: comments + total votes */}
+      <View style={styles.bottomRow}>
+        {poll.allowComments && (
+          <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
+            <MessageCircle width={18} color="gray" style={styles.commentIcon} />
+            <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Checkmark icon + totalVotes */}
+        <View style={styles.voteContainer}>
+          <CheckCircle width={16} color="gray" style={styles.checkmarkIcon} />
+          <Text style={styles.voteCount}>{totalVotes}</Text>
+        </View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.pollBackground,
+    backgroundColor: colors.pollBackground || '#fff',
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: 6,
@@ -189,7 +194,6 @@ const styles = StyleSheet.create({
   optionContainer: {
     position: 'relative',
     paddingVertical: 10,
-    // paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: colors.dark,
     borderRadius: 4,
@@ -210,6 +214,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
     marginLeft: 12,
   },
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkIcon: {
+    marginRight: 6,
+    color: colors.dark,
+  },
   selectedOptionBorder: {
     borderColor: '#c8f7c5',
   },
@@ -223,15 +235,32 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginRight: 12,
   },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    justifyContent: 'flex-start',
+  },
   commentContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10, // Spacing below last option
+    marginRight: 10,
   },
   commentIcon: {
     marginRight: 2,
   },
   commentCount: {
+    fontSize: 14,
+    color: colors.dark,
+  },
+  voteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  checkmarkIcon: {
+    marginRight: 4,
+  },
+  voteCount: {
     fontSize: 14,
     color: colors.dark,
   },

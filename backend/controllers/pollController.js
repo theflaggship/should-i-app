@@ -1,9 +1,9 @@
-const { Poll, User, PollOption } = require('../models');
+const { Poll, User, PollOption, Comment } = require('../models');
+const { sequelize } = require('../models');
 
 // POST /api/polls - Create a new poll
 exports.createPoll = async (req, res, next) => {
   try {
-    // Create the poll record using data from the request body
     const pollData = req.body;
     const newPoll = await Poll.create(pollData);
     
@@ -22,7 +22,7 @@ exports.createPoll = async (req, res, next) => {
   }
 };
 
-// GET /api/polls - Retrieve all polls
+// GET /api/polls - Retrieve all polls with comment count
 exports.getAllPolls = async (req, res, next) => {
   try {
     const polls = await Poll.findAll({
@@ -33,7 +33,11 @@ exports.getAllPolls = async (req, res, next) => {
         },
         {
           model: PollOption,
-          attributes: ['id', 'optionText', 'votes'] // Ensure votes field is included
+          attributes: ['id', 'optionText', 'votes']
+        },
+        {
+          model: Comment,
+          attributes: ['id', 'commentText', 'userId'],
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -43,6 +47,8 @@ exports.getAllPolls = async (req, res, next) => {
       id: poll.id,
       question: poll.question,
       createdAt: poll.createdAt,
+      allowComments: poll.allowComments, 
+      commentCount: poll.Comments?.length || 0,
       user: {
         username: poll.User?.username || 'Unknown',
         profilePicture: poll.User?.profilePicture || null
@@ -50,7 +56,7 @@ exports.getAllPolls = async (req, res, next) => {
       options: poll.PollOptions?.map((opt) => ({
         id: opt.id,
         text: opt.optionText,
-        votes: opt.votes || 0 // Ensure votes default to 0 if undefined
+        votes: opt.votes || 0
       })) || []
     }));
 
@@ -60,7 +66,7 @@ exports.getAllPolls = async (req, res, next) => {
   }
 };
 
-// GET /api/polls/:id - Retrieve a specific poll by ID
+// GET /api/polls/:id - Retrieve a specific poll by ID including comments
 exports.getPollById = async (req, res, next) => {
   try {
     const poll = await Poll.findByPk(req.params.id, {
@@ -71,34 +77,52 @@ exports.getPollById = async (req, res, next) => {
         },
         {
           model: PollOption,
-          attributes: ['id', 'optionText']
+          attributes: ['id', 'optionText', 'votes']
+        },
+        {
+          model: Comment,
+          attributes: ['id', 'commentText', 'userId'],
+          include: {
+            model: User,
+            attributes: ['username', 'profilePicture'] // ✅ Include user info for comments
+          }
         }
       ]
     });
 
     if (!poll) {
-      const err = new Error('Poll not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'Poll not found' });
     }
 
     res.status(200).json({
       id: poll.id,
       question: poll.question,
-      createdAt: poll.createdAt, // Include createdAt field
+      createdAt: poll.createdAt,
+      allowComments: poll.allowComments,
+      commentCount: poll.Comments?.length || 0,
+      comments: poll.Comments?.map((comment) => ({
+        id: comment.id,
+        text: comment.commentText,
+        user: {
+          username: comment.User?.username || 'Unknown',
+          profilePicture: comment.User?.profilePicture || null
+        }
+      })) || [],
       user: {
         username: poll.User?.username || 'Unknown',
         profilePicture: poll.User?.profilePicture || null
       },
       options: poll.PollOptions?.map((opt) => ({
         id: opt.id,
-        text: opt.optionText
+        text: opt.optionText,
+        votes: opt.votes || 0
       })) || []
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 // PUT /api/polls/:id - Update a poll by ID
 exports.updatePoll = async (req, res, next) => {

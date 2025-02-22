@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { sendVote } from '../services/pollService';
+import { AuthContext } from '../context/AuthContext';
 import colors from '../styles/colors';
+import Icon from 'react-native-vector-icons/Feather';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
 const PollCard = ({ poll, onVote }) => {
+  const navigation = useNavigation();
+  const { user } = useContext(AuthContext);
   const [userVote, setUserVote] = useState(poll?.userVote || null);
   const [options, setOptions] = useState(poll.options);
   const [totalVotes, setTotalVotes] = useState(
@@ -28,7 +33,7 @@ const PollCard = ({ poll, onVote }) => {
 
   // Function to calculate percentage safely
   const getVotePercentage = (optionVotes) => {
-    if (!optionVotes || totalVotes === 0) return '0%'; // Prevent NaN
+    if (!optionVotes || totalVotes === 0) return '0 Votes'; // Prevent NaN
     return `${Math.round((optionVotes / totalVotes) * 100)}%`;
   };
 
@@ -52,30 +57,44 @@ const PollCard = ({ poll, onVote }) => {
     return `${diffInYears}y`;
   };
 
-  // Handle option press and send vote via WebSocket
   const handleOptionPress = (optionId) => {
+    // If the user taps the same option again, remove the vote (unvote)
     if (userVote === optionId) {
-      // Remove vote, decrease total votes and option votes
       setUserVote(null);
       setOptions((prevOptions) =>
         prevOptions.map((opt) =>
-          opt.id === optionId ? { ...opt, votes: opt.votes - 1 } : opt
+          opt.id === optionId ? { ...opt, votes: Math.max(opt.votes - 1, 0) } : opt
         )
       );
-      setTotalVotes((prevTotal) => prevTotal - 1);
-      sendVote(poll.id, null);
     } else {
-      // Vote for a new option, increase total votes and option votes
-      setUserVote(optionId);
+      // The user is voting for a different option or voting for the first time
       setOptions((prevOptions) =>
-        prevOptions.map((opt) =>
-          opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt
-        )
+        prevOptions.map((opt) => {
+          if (opt.id === optionId) {
+            // Increment votes on the newly chosen option
+            return { ...opt, votes: opt.votes + 1 };
+          } else if (opt.id === userVote) {
+            // Decrement votes on the previously chosen option
+            return { ...opt, votes: Math.max(opt.votes - 1, 0) };
+          }
+          return opt;
+        })
       );
-      setTotalVotes((prevTotal) => prevTotal + 1);
-      sendVote(poll.id, optionId);
+      setUserVote(optionId);
     }
+  
+    // Send the vote via WebSocket
+    // (No await/response because WebSockets don't return an immediate result)
+    sendVote(user.id, poll.id, optionId);
   };
+  
+  
+
+  const handleCommentsPress = () => {
+    if (poll.id) {
+      navigation.navigate('PollDetails', { pollId: poll.id });
+    }
+  };  
 
   return (
     <View style={styles.card}>
@@ -118,6 +137,12 @@ const PollCard = ({ poll, onVote }) => {
           );
         })}
       </View>
+      {poll.allowComments && (
+        <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
+          <Icon name="message-circle" size={18} color="gray" style={styles.commentIcon} />
+          <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -195,6 +220,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'gray',
     fontWeight: '400',
+  },
+  commentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10, // Spacing below last option
+  },
+  commentIcon: {
+    marginRight: 3, // ✅ Places the icon before the number
+  },
+  commentCount: {
+    fontSize: 14,
+    color: colors.dark,
   },
 });
 

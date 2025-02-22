@@ -1,4 +1,4 @@
-const { sequelize, User, Poll, PollOption } = require('./models'); // Import from models/index.js
+const { sequelize, User, Poll, PollOption, Comment } = require('./models'); // Import from models/index.js
 const bcrypt = require('bcryptjs');
 
 // A mapping of poll questions to relevant options
@@ -45,6 +45,20 @@ const questionOptionsMap = [
   },
 ];
 
+// Random comment texts
+const commentTexts = [
+  "I totally agree!",
+  "Not sure about that...",
+  "Great choice!",
+  "I voted differently, but I see your point.",
+  "This is a tough decision!",
+  "I love this topic!",
+  "Interesting take!",
+  "I was thinking the same thing.",
+  "That’s a hard one!",
+  "I’d love to hear more opinions on this!"
+];
+
 async function seed() {
   try {
     // 1. Recreate tables
@@ -65,20 +79,26 @@ async function seed() {
     }
     console.log('Created 5 users with hashed passwords.');
 
-    // 3. For each user, create 3 polls
+    // 3. Create polls with mixed comment settings
+    const polls = [];
     for (let user of users) {
       for (let p = 0; p < 3; p++) {
         // Pick a random question from questionOptionsMap
         const randomIndex = Math.floor(Math.random() * questionOptionsMap.length);
         const { question, options } = questionOptionsMap[randomIndex];
 
+        // Randomly decide if the poll allows comments
+        const allowComments = Math.random() < 0.7; // 70% chance to allow comments
+
         // Create the poll
         const newPoll = await Poll.create({
           userId: user.id,
           question,
           isPrivate: false,
-          allowComments: true,
+          allowComments,
         });
+
+        polls.push(newPoll);
 
         // Shuffle and pick options (2 to 4)
         const shuffledOpts = [...options].sort(() => 0.5 - Math.random());
@@ -95,7 +115,25 @@ async function seed() {
         }
       }
     }
-    console.log('Polls and options created for each user.');
+    console.log('Polls and options created.');
+
+    // 4. Add random comments to some polls
+    for (let poll of polls) {
+      if (poll.allowComments) {
+        const numComments = Math.floor(Math.random() * 5); // 0 to 4 comments per poll
+        for (let i = 0; i < numComments; i++) {
+          const randomUser = users[Math.floor(Math.random() * users.length)];
+          const randomComment = commentTexts[Math.floor(Math.random() * commentTexts.length)];
+
+          await Comment.create({
+            pollId: poll.id,
+            userId: randomUser.id,
+            commentText: randomComment,
+          });
+        }
+      }
+    }
+    console.log('Random comments added to polls.');
 
     console.log('Seeding complete.');
     process.exit(0);

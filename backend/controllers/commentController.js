@@ -46,7 +46,14 @@ exports.deleteComment = async (req, res, next) => {
 // GET /api/comments/poll/:pollId - Get all comments for a poll
 exports.getCommentsByPoll = async (req, res, next) => {
   try {
-    const comments = await Comment.findAll({ where: { pollId: req.params.pollId } });
+    const comments = await Comment.findAll({
+      where: { pollId: req.params.pollId },
+      include: {
+        model: User,
+        attributes: ['username', 'profilePicture']
+      },
+      order: [['createdAt', 'ASC']]
+    });
     res.status(200).json(comments);
   } catch (error) {
     next(error);

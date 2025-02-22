@@ -1,4 +1,3 @@
-// src/screens/HomeScreen.js
 import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
@@ -28,7 +27,7 @@ const HomeScreen = () => {
   // Adjust navbar movement to keep part of it visible
   const navbarTranslate = scrollY.interpolate({
     inputRange: [0, 50],
-    outputRange: [0, -50], // Moves up by 50px instead of disappearing completely
+    outputRange: [0, -35], // Moves up by 35px instead of disappearing completely
     extrapolate: 'clamp',
   });
 
@@ -97,7 +96,12 @@ const HomeScreen = () => {
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
           <View style={index === 0 ? styles.firstPollCardContainer : styles.pollCardContainer}>
-            <PollCard poll={item} onVote={handleVote} />
+            <PollCard 
+              poll={item} 
+              onVote={handleVote}
+              allowComments={item.allowComments}
+              commentCount={item.commentCount}
+            />
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 16 }} // Ensures spacing at the bottom
@@ -133,6 +137,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#fff',
+    marginTop: 30,
   },
   pollCardContainer: {
     marginHorizontal: 16, // ✅ Adds 1rem (16px) left & right spacing

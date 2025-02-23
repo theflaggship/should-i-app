@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVote } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircle, CheckCircle } from 'react-native-feather'; // ✅ Using both icons
+import { MessageCircle, Check } from 'react-native-feather'; // ✅ Using both icons
 import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
@@ -119,7 +119,13 @@ const PollCard = ({ poll, onVote }) => {
               <View style={[styles.fillBar, { width: percentage, backgroundColor: isVoted ? '#c8f7c5' : '#d3d3d3' }]} />
               <View style={styles.optionContent}>
                 <View style={styles.optionLeft}>
-                  {isVoted && <CheckCircle width={18} style={styles.checkIcon} />}
+                  {isVoted && 
+                  <View style={styles.checkMarkContainer}>
+                  <View style={styles.singleVoteCircle}>
+                    <Check width={12} color="#21D0B2" />
+                  </View>
+                  </View>
+                  }
                   <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
                     {option.text}
                   </Text>
@@ -141,10 +147,13 @@ const PollCard = ({ poll, onVote }) => {
             <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
           </TouchableOpacity>
         )}
-
         {/* Checkmark icon + totalVotes */}
         <View style={styles.voteContainer}>
-          <CheckCircle width={16} color="gray" style={styles.checkmarkIcon} />
+          <View style={styles.checkMarkContainer}>
+          <View style={styles.totalVoteCircle}>
+            <Check width={12} color="gray" style={styles.totalVoteCheck} />
+          </View>
+          </View>
           <Text style={styles.voteCount}>{totalVotes}</Text>
         </View>
       </View>
@@ -156,7 +165,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.dark,
     borderRadius: 6,
     padding: 16,
     marginVertical: 8,
@@ -257,8 +266,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center'
   },
-  checkmarkIcon: {
+  checkMarkContainer: {
     marginRight: 4,
+  },
+  totalVoteCircle: {
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.2,
+    borderColor: 'gray',
+  },
+  singleVoteCircle: {
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  totalVoteCheck: {
   },
   voteCount: {
     fontSize: 14,

@@ -48,7 +48,7 @@ const ProfileScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: 16 },
+  container: { flex: 1, backgroundColor: colors.appBackground, padding: 16 },
   title: { fontSize: 24, textAlign: 'center', marginBottom: 16, color: colors.dark },
   text: { fontSize: 16, color: colors.dark },
 });

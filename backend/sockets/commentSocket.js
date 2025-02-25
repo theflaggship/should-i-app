@@ -20,11 +20,19 @@ const setupCommentSocket = (wss) => {
 
         // Optionally include user details for the new comment
         const commentWithUser = await Comment.findByPk(newComment.id, {
-          include: [{ model: User, attributes: ['username', 'profilePicture'] }],
+          include: [{ model: User, attributes: ['id', 'username', 'profilePicture'] }],
         });
 
         // Broadcast the new comment to all connected clients
-        const message = JSON.stringify({ pollId, comment: commentWithUser });
+        const message = JSON.stringify({ 
+            pollId, 
+            comment: {
+            id: commentWithUser.id,
+            text: commentWithUser.text,
+            createdAt: commentWithUser.createdAt,
+            User: commentWithUser.User // includes username, profilePicture
+          } 
+        });
         wss.clients.forEach((client) => {
           if (client.readyState === ws.OPEN) {
             client.send(message);

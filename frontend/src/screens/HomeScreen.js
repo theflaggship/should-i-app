@@ -1,14 +1,16 @@
-import React, { useEffect, useState, useContext } from 'react';
+// HomeScreen.js
+import React, { useEffect, useContext } from 'react';
 import {
   View,
   Text,
   FlatList,
   ActivityIndicator,
   StyleSheet,
-  Animated
+  Animated,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { getPolls, connectWebSocket, sendVote } from '../services/pollService';
+import { PollsContext } from '../context/PollsContext';
+import { sendVoteWS } from '../services/pollService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PollCard from '../components/PollCard';
 import colors from '../styles/colors';
@@ -17,65 +19,47 @@ import colors from '../styles/colors';
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 const HomeScreen = () => {
-  const { token } = useContext(AuthContext);
-  const [polls, setPolls] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // 1) Destructure 'user' from AuthContext (and token if needed)
+  const { user } = useContext(AuthContext);
+
+  // 2) Destructure polls, loading, error, and fetchAllPolls from PollsContext
+  const { polls, loading, error, fetchAllPolls } = useContext(PollsContext);
+
   const insets = useSafeAreaInsets();
   const scrollY = React.useRef(new Animated.Value(0)).current;
 
-  // Adjust navbar movement to keep part of it visible
+  // Animate the navbar
   const navbarTranslate = scrollY.interpolate({
     inputRange: [0, 50],
-    outputRange: [0, -35], // Moves up by 35px instead of disappearing completely
+    outputRange: [0, -35],
     extrapolate: 'clamp',
   });
 
-  // Fetch polls from API
+  // 3) Fetch polls from the global context on mount
   useEffect(() => {
-    const fetchPolls = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getPolls(token);
-        setPolls(data);
-      } catch (err) {
-        setError(err.message || 'Something went wrong');
-      } finally {
-        setLoading(false);
-      }
-    };
+    // We call fetchAllPolls here in case user navigates away & back
+    fetchAllPolls();
+  }, [fetchAllPolls]);
 
-    fetchPolls();
-
-    // Connect WebSocket for real-time updates
-    connectWebSocket(updatePollState);
-  }, []);
-
-  // Update poll state when WebSocket receives new data
-  const updatePollState = (pollId, updatedOptions) => {
-    setPolls((prevPolls) =>
-      prevPolls.map((poll) =>
-        poll.id === pollId ? { ...poll, options: updatedOptions } : poll
-      )
-    );
-  };
-
-  // Handle vote submission and send to WebSocket
+  // 4) Handle vote submission
   const handleVote = (pollId, optionId) => {
-    sendVote(pollId, optionId);
+    if (!user || !user.id) {
+      console.warn('No user or user.id found in AuthContext');
+      return;
+    }
+    sendVoteWS(user.id, pollId, optionId);
   };
 
-  // Show loading spinner while fetching
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  // 5) Loading spinner
+  // if (loading) {
+  //   return (
+  //     <View style={styles.center}>
+  //       <ActivityIndicator size="large" color={colors.primary} />
+  //     </View>
+  //   );
+  // }
 
-  // Show error message if there's a problem
+  // 6) Error message
   if (error) {
     return (
       <View style={styles.center}>
@@ -84,6 +68,7 @@ const HomeScreen = () => {
     );
   }
 
+  // 7) Render list of polls
   return (
     <View style={styles.container}>
       {/* Animated Navbar */}
@@ -95,16 +80,22 @@ const HomeScreen = () => {
         data={polls}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
-          <View style={index === 0 ? styles.firstPollCardContainer : styles.pollCardContainer}>
-            <PollCard 
-              poll={item} 
+          <View
+            style={
+              index === 0
+                ? styles.firstPollCardContainer
+                : styles.pollCardContainer
+            }
+          >
+            <PollCard
+              poll={item}
               onVote={handleVote}
               allowComments={item.allowComments}
               commentCount={item.commentCount}
             />
           </View>
         )}
-        contentContainerStyle={{ paddingBottom: 16 }} // Ensures spacing at the bottom
+        contentContainerStyle={{ paddingBottom: 16 }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
@@ -114,18 +105,23 @@ const HomeScreen = () => {
   );
 };
 
+export default HomeScreen;
+
+// ----------------------------------------
+// --------------- STYLES ----------------
+// ----------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.appBackground,
+    backgroundColor: colors.appBackground || '#fff',
   },
   navbar: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 80, // Navbar remains partially visible when scrolling
-    backgroundColor: colors.dark,
+    height: 80,
+    backgroundColor: colors.dark || '#333',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -140,13 +136,13 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
   pollCardContainer: {
-    marginHorizontal: 16, // ✅ Adds 1rem (16px) left & right spacing
-    marginBottom: 16, // ✅ 1rem (16px) between poll cards
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   firstPollCardContainer: {
-    marginTop: 96, // ✅ 1rem (16px) below navbar (80px + 16px)
-    marginHorizontal: 16, // ✅ Adds 1rem (16px) left & right spacing
-    marginBottom: 16, // ✅ Ensures same spacing for following cards
+    marginTop: 96,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   center: {
     flex: 1,
@@ -158,5 +154,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
-export default HomeScreen;

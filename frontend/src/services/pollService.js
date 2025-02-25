@@ -1,17 +1,24 @@
 // src/services/pollService.js
 import api from './api';
 
-let socket; // Vote WebSocket
+let voteSocket; // Vote WebSocket
 let commentSocket; // Comment WebSocket
 
 // --------------------
 // Poll REST API Calls
 // --------------------
 export const getPolls = async (token) => {
-  const response = await api.get('/polls', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+  console.log('getPolls called with token:', token); // Debug
+  try {
+    const response = await api.get('/polls', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    console.log('getPolls response:', response.data); // Debug
+    return response.data;
+  } catch (error) {
+    console.log('getPolls error:', error); // Debug
+    throw error;
+  }
 };
 
 export const getPollById = async (pollId) => {
@@ -40,28 +47,28 @@ export const getCommentsForPoll = async (pollId) => {
 // ---------------------
 // Vote WebSocket Logic
 // ---------------------
-export const connectWebSocket = (updatePollState) => {
-  socket = new WebSocket('ws://localhost:3000'); // Adjust for production
+export const connectVoteSocket = (updatePollState) => {
+  voteSocket = new WebSocket('ws://localhost:3000'); // Adjust for production
 
-  socket.onopen = () => {
+  voteSocket.onopen = () => {
     console.log('Vote WebSocket connected');
   };
 
-  socket.onmessage = (event) => {
+  voteSocket.onmessage = (event) => {
     const { pollId, options } = JSON.parse(event.data);
     // Update poll data in frontend state
     updatePollState(pollId, options);
   };
 
-  socket.onclose = () => {
+  voteSocket.onclose = () => {
     console.log('Vote WebSocket disconnected, attempting to reconnect...');
-    setTimeout(() => connectWebSocket(updatePollState), 3000); // Auto-reconnect
+    setTimeout(() => connectVoteSocket(updatePollState), 3000); // Auto-reconnect
   };
 };
 
-export const sendVote = (userId, pollId, pollOptionId) => {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ userId, pollId, pollOptionId }));
+export const sendVoteWS = (userId, pollId, pollOptionId) => {
+  if (voteSocket && voteSocket.readyState === WebSocket.OPEN) {
+    voteSocket.send(JSON.stringify({ userId, pollId, pollOptionId }));
   } else {
     console.error('Vote WebSocket is not connected.');
   }

@@ -28,7 +28,7 @@ const AppNavigator = () => {
           <Stack.Screen
             name="PollDetails"
             component={PollDetailsScreen}
-            options={{ title: 'Poll Details' }} // Adjust as desired
+            options={{ headerShown: false }} // Adjust as desired
           />
         </Stack.Navigator>
       ) : (

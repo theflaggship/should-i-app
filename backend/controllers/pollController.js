@@ -1,4 +1,4 @@
-const { Poll, User, PollOption, Comment } = require('../models');
+const { Poll, User, PollOption, Comment, Vote } = require('../models');
 const { sequelize } = require('../models');
 
 // POST /api/polls - Create a new poll
@@ -82,10 +82,12 @@ exports.getPollById = async (req, res, next) => {
         {
           model: Comment,
           attributes: ['id', 'commentText', 'userId'],
-          include: {
+          include: [
+            {
             model: User,
-            attributes: ['username', 'profilePicture'] // ✅ Include user info for comments
-          }
+            attributes: ['id', 'username', 'profilePicture'] // ✅ Include user info for comments
+            }
+          ]
         }
       ]
     });
@@ -100,23 +102,29 @@ exports.getPollById = async (req, res, next) => {
       createdAt: poll.createdAt,
       allowComments: poll.allowComments,
       commentCount: poll.Comments?.length || 0,
-      comments: poll.Comments?.map((comment) => ({
-        id: comment.id,
-        text: comment.commentText,
-        user: {
-          username: comment.User?.username || 'Unknown',
-          profilePicture: comment.User?.profilePicture || null
-        }
-      })) || [],
-      user: {
-        username: poll.User?.username || 'Unknown',
-        profilePicture: poll.User?.profilePicture || null
-      },
-      options: poll.PollOptions?.map((opt) => ({
+      user: poll.User
+      ? {
+        username: poll.User.username,
+        profilePicture: poll.User.profilePicture,
+      } 
+      : null,
+      options: poll.PollOptions.map((opt) => ({
         id: opt.id,
-        text: opt.optionText,
-        votes: opt.votes || 0
-      })) || []
+        text: opt.optionText,  // rename so the frontend sees "text"
+        votes: opt.votes,
+      })),
+      comments: (poll.Comments || []).map((c) => ({
+        id: c.id,
+        text: c.text,
+        createdAt: c.createdAt,
+        User: c.User
+          ? {
+              id: c.User.id,
+              username: c.User.username,
+              profilePicture: c.User.profilePicture
+            }
+          : null
+      }))
     });
   } catch (error) {
     next(error);

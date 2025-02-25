@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { PollsContext } from '../context/PollsContext';
+import { usePollsStore } from '../store/usePollsStore';
 import { sendVoteWS } from '../services/pollService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PollCard from '../components/PollCard';
@@ -22,9 +22,11 @@ const HomeScreen = () => {
   // 1) Destructure 'user' from AuthContext (and token if needed)
   const { user } = useContext(AuthContext);
 
-  // 2) Destructure polls, loading, error, and fetchAllPolls from PollsContext
-  const { polls, loading, error, fetchAllPolls } = useContext(PollsContext);
-
+  // 2) Destructure polls, loading, error, and fetchAllPolls from PollStore
+  const polls = usePollsStore((state) => state.polls);
+  const loading = usePollsStore((state) => state.loading);
+  const error = usePollsStore((state) => state.error);
+  
   const insets = useSafeAreaInsets();
   const scrollY = React.useRef(new Animated.Value(0)).current;
 
@@ -35,29 +37,14 @@ const HomeScreen = () => {
     extrapolate: 'clamp',
   });
 
-  // 3) Fetch polls from the global context on mount
-  useEffect(() => {
-    // We call fetchAllPolls here in case user navigates away & back
-    fetchAllPolls();
-  }, [fetchAllPolls]);
-
-  // 4) Handle vote submission
-  const handleVote = (pollId, optionId) => {
-    if (!user || !user.id) {
-      console.warn('No user or user.id found in AuthContext');
-      return;
-    }
-    sendVoteWS(user.id, pollId, optionId);
-  };
-
   // 5) Loading spinner
-  // if (loading) {
-  //   return (
-  //     <View style={styles.center}>
-  //       <ActivityIndicator size="large" color={colors.primary} />
-  //     </View>
-  //   );
-  // }
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   // 6) Error message
   if (error) {
@@ -89,7 +76,6 @@ const HomeScreen = () => {
           >
             <PollCard
               poll={item}
-              onVote={handleVote}
               allowComments={item.allowComments}
               commentCount={item.commentCount}
             />
@@ -103,7 +89,7 @@ const HomeScreen = () => {
       />
     </View>
   );
-};
+}
 
 export default HomeScreen;
 

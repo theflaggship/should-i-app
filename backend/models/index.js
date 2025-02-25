@@ -39,8 +39,14 @@ User.hasMany(Poll, { foreignKey: 'userId' });
 Poll.belongsTo(User, { foreignKey: 'userId' });
 
 // Poll <-> PollOption (one-to-many)
-Poll.hasMany(PollOption, { foreignKey: 'pollId' });
-PollOption.belongsTo(Poll, { foreignKey: 'pollId' });
+Poll.hasMany(PollOption, {
+  as: 'options',
+  foreignKey: 'pollId',
+});
+PollOption.belongsTo(Poll, {
+  as: 'poll',
+  foreignKey: 'pollId',
+});
 
 // PollOption <-> Vote (one-to-many)
 PollOption.hasMany(Vote, { foreignKey: 'pollOptionId' });

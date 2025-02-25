@@ -9,36 +9,30 @@ import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
-const PollCard = ({ poll, onVote }) => {
+const PollCard = ({ poll }) => {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
-  const [userVote, setUserVote] = useState(poll?.userVote || null);
-  const [options, setOptions] = useState(poll?.options || []);
-  const [totalVotes, setTotalVotes] = useState(
-    poll?.options ? poll.options.reduce((sum, option) => sum + (option.votes || 0), 0) : 0
-  );
 
-  // Update options and total votes when poll prop changes
+  // 1) Locally track the user's current vote for instant UI updates
+  const [localUserVote, setLocalUserVote] = useState(poll?.userVote || null);
+
+  // 2) Whenever the poll object changes (e.g. new fetch or WebSocket update),
+  //    sync localUserVote with poll.userVote (if your backend sets it)
   useEffect(() => {
-    setOptions((prevOptions) =>
-      prevOptions.map((prevOption) => {
-        const updatedOption = poll.options.find((opt) => opt.id === prevOption.id);
-        return updatedOption ? { ...prevOption, votes: updatedOption.votes } : prevOption;
-      })
-    );
-    setTotalVotes(poll.options.reduce((sum, option) => sum + (option.votes || 0), 0));
-  }, [poll]);
+    setLocalUserVote(poll?.userVote || null);
+  }, [poll?.userVote, poll?.id]);
 
-  // Update userVote when poll.userVote changes
-  useEffect(() => {
-    setUserVote(poll.userVote);
-  }, [poll.userVote]);
+  // Safely handle poll.options
+  const pollOptions = poll?.options || [];
+  const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
 
+  // Show a "0 Votes" or percentage string
   const getVotePercentage = (optionVotes) => {
     if (!optionVotes || totalVotes === 0) return '0 Votes';
     return `${Math.round((optionVotes / totalVotes) * 100)}%`;
   };
 
+  // Simple time-ago helper
   const getTimeElapsed = (createdAt) => {
     if (!createdAt) return '';
     const pollDate = new Date(createdAt);
@@ -57,40 +51,39 @@ const PollCard = ({ poll, onVote }) => {
     return `${diffInYears}y`;
   };
 
+  // 3) Handle user tapping an option
   const handleOptionPress = (optionId) => {
-    if (userVote === optionId) {
-      // Unvote
-      setUserVote(null);
-      setOptions((prevOptions) =>
-        prevOptions.map((opt) =>
-          opt.id === optionId ? { ...opt, votes: Math.max(opt.votes - 1, 0) } : opt
-        )
-      );
+    if (!user || !user.id) return;
+
+    // Optimistic update: change localUserVote right away
+    if (localUserVote === optionId) {
+      setLocalUserVote(null); // unvote
     } else {
-      // Vote for a new option
-      setOptions((prevOptions) =>
-        prevOptions.map((opt) => {
-          if (opt.id === optionId) {
-            return { ...opt, votes: opt.votes + 1 };
-          } else if (opt.id === userVote) {
-            return { ...opt, votes: Math.max(opt.votes - 1, 0) };
-          }
-          return opt;
-        })
-      );
-      setUserVote(optionId);
+      setLocalUserVote(optionId); // switch to new option
     }
-    onVote(poll.id, optionId);
+
+    // Send the vote to the server via WebSocket
+    sendVoteWS(user.id, poll.id, optionId);
   };
 
+  // 4) Navigate to PollDetails if the poll allows comments
   const handleCommentsPress = () => {
-    if (poll.id) {
+    if (poll?.id) {
       navigation.navigate('PollDetails', { pollId: poll.id });
     }
   };
 
+  if (!poll) {
+    return (
+      <View style={styles.card}>
+        <Text>No poll data found.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
+      {/* Header Row: User info + timestamp */}
       <View style={styles.userRow}>
         <Image
           source={{ uri: poll?.user?.profilePicture || DEFAULT_PROFILE_IMG }}
@@ -102,9 +95,10 @@ const PollCard = ({ poll, onVote }) => {
 
       <Text style={styles.question}>{poll?.question ?? 'No question'}</Text>
 
+      {/* Render poll options */}
       <View style={styles.optionsContainer}>
-        {options.map((option) => {
-          const isVoted = userVote === option.id;
+        {pollOptions.map((option) => {
+          const isVoted = localUserVote === option.id;
           const percentage = getVotePercentage(option.votes);
 
           return (
@@ -124,7 +118,7 @@ const PollCard = ({ poll, onVote }) => {
                   {isVoted && (
                     <View style={styles.checkMarkContainer}>
                       <View style={styles.singleVoteCircle}>
-                        <Check width={12} color="#21D0B2" />
+                        <Check stroke-width="1.5" width={12} color="#21D0B2" />
                       </View>
                     </View>
                   )}
@@ -141,6 +135,7 @@ const PollCard = ({ poll, onVote }) => {
         })}
       </View>
 
+      {/* Bottom row: comment count + total votes */}
       <View style={styles.bottomRow}>
         {poll.allowComments && (
           <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
@@ -160,6 +155,10 @@ const PollCard = ({ poll, onVote }) => {
     </View>
   );
 };
+
+export default PollCard;
+
+/* ------------- STYLES ------------- */
 
 const styles = StyleSheet.create({
   card: {
@@ -229,10 +228,10 @@ const styles = StyleSheet.create({
     color: colors.dark,
   },
   selectedOptionBorder: {
-    borderColor: '#c8f7c5',
+    borderColor: '#21D0B2',
   },
   selectedOptionText: {
-    color: '#21D0B2',
+    color: colors.dark,
   },
   percentageText: {
     fontSize: 12,
@@ -282,11 +281,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 4,
+    borderColor: '#21D0B2',
+    borderWidth: 1.2,
   },
   voteCount: {
     fontSize: 14,
     color: colors.dark,
   },
 });
-
-export default PollCard;

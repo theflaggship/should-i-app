@@ -16,6 +16,10 @@ const PollOption = sequelize.define('PollOption', {
       type: DataTypes.STRING,
       allowNull: true, // URL for the image option, if applicable
     },
+    sortOrder: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     votes: {
       type: DataTypes.INTEGER,
       allowNull: false,

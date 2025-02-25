@@ -8,15 +8,12 @@ let commentSocket; // Comment WebSocket
 // Poll REST API Calls
 // --------------------
 export const getPolls = async (token) => {
-  console.log('getPolls called with token:', token); // Debug
   try {
     const response = await api.get('/polls', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log('getPolls response:', response.data); // Debug
     return response.data;
   } catch (error) {
-    console.log('getPolls error:', error); // Debug
     throw error;
   }
 };
@@ -55,8 +52,10 @@ export const connectVoteSocket = (updatePollState) => {
   };
 
   voteSocket.onmessage = (event) => {
+    // The server sends: { pollId, options: [ { id, text, votes }, ... ] }
     const { pollId, options } = JSON.parse(event.data);
-    // Update poll data in frontend state
+
+    // Pass the array directly to updatePollState
     updatePollState(pollId, options);
   };
 

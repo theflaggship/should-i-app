@@ -61,11 +61,10 @@ const commentTexts = [
 
 async function seed() {
   try {
-    // 1. Recreate tables
     await sequelize.sync({ force: true });
     console.log('Database synced (force: true).');
 
-    // 2. Create 5 users with hashed passwords
+    // Create 5 users
     const users = [];
     for (let i = 1; i <= 5; i++) {
       const hashedPassword = await bcrypt.hash('password', 10);
@@ -79,48 +78,44 @@ async function seed() {
     }
     console.log('Created 5 users with hashed passwords.');
 
-    // 3. Create polls with mixed comment settings
+    // Create polls
     const polls = [];
     for (let user of users) {
       for (let p = 0; p < 3; p++) {
-        // Pick a random question from questionOptionsMap
         const randomIndex = Math.floor(Math.random() * questionOptionsMap.length);
         const { question, options } = questionOptionsMap[randomIndex];
 
-        // Randomly decide if the poll allows comments
-        const allowComments = Math.random() < 0.7; // 70% chance to allow comments
-
-        // Create the poll
+        const allowComments = Math.random() < 0.7;
         const newPoll = await Poll.create({
           userId: user.id,
           question,
           isPrivate: false,
           allowComments,
         });
-
         polls.push(newPoll);
 
-        // Shuffle and pick options (2 to 4)
+        // Shuffle + pick a subset of 2 to 4 options
         const shuffledOpts = [...options].sort(() => 0.5 - Math.random());
         const numberOfOptions = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
         const chosenOpts = shuffledOpts.slice(0, numberOfOptions);
 
-        // Create PollOption records with random votes
-        for (let optText of chosenOpts) {
-          await PollOption.create({
+        // Create PollOption records, preserving the final order with 'sortOrder'
+        chosenOpts.forEach((optText, idx) => {
+          PollOption.create({
             pollId: newPoll.id,
             optionText: optText,
-            votes: Math.floor(Math.random() * 10), // Assign 0-9 random votes
+            votes: Math.floor(Math.random() * 10),
+            sortOrder: idx, // <--- Assign index as the order
           });
-        }
+        });
       }
     }
     console.log('Polls and options created.');
 
-    // 4. Add random comments to some polls
+    // Add random comments
     for (let poll of polls) {
       if (poll.allowComments) {
-        const numComments = Math.floor(Math.random() * 5); // 0 to 4 comments per poll
+        const numComments = Math.floor(Math.random() * 5);
         for (let i = 0; i < numComments; i++) {
           const randomUser = users[Math.floor(Math.random() * users.length)];
           const randomComment = commentTexts[Math.floor(Math.random() * commentTexts.length)];

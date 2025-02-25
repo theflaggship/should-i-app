@@ -9,10 +9,11 @@ exports.createPoll = async (req, res, next) => {
     
     // If poll options are provided, create them
     if (req.body.options && Array.isArray(req.body.options)) {
-      const pollOptions = req.body.options.map(option => ({
+      const pollOptions = req.body.options.map((option, index) => ({
         pollId: newPoll.id,
         optionText: option.optionText,
         optionImage: option.optionImage || null,
+        sortOrder: index,
       }));
       await PollOption.bulkCreate(pollOptions);
     }
@@ -25,6 +26,10 @@ exports.createPoll = async (req, res, next) => {
 // GET /api/polls - Retrieve all polls with comment count
 exports.getAllPolls = async (req, res, next) => {
   try {
+    // 1) Identify the requesting user (JWT or query param)
+    const userId = req.user?.id; // or req.query.userId
+
+    // 2) Fetch polls with associated data
     const polls = await Poll.findAll({
       include: [
         {
@@ -33,34 +38,61 @@ exports.getAllPolls = async (req, res, next) => {
         },
         {
           model: PollOption,
-          attributes: ['id', 'optionText', 'votes']
+          as: 'options',
+          attributes: ['id', 'optionText', 'votes', 'sortOrder']
         },
         {
           model: Comment,
-          attributes: ['id', 'commentText', 'userId'],
+          attributes: ['id', 'commentText', 'userId']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
-    const data = polls.map((poll) => ({
-      id: poll.id,
-      question: poll.question,
-      createdAt: poll.createdAt,
-      allowComments: poll.allowComments, 
-      commentCount: poll.Comments?.length || 0,
-      user: {
-        username: poll.User?.username || 'Unknown',
-        profilePicture: poll.User?.profilePicture || null
-      },
-      options: poll.PollOptions?.map((opt) => ({
-        id: opt.id,
-        text: opt.optionText,
-        votes: opt.votes || 0
-      })) || []
-    }));
+    // 3) For each poll, find the user's vote (if userId is provided)
+    const data = await Promise.all(
+      polls.map(async (poll) => {
+        let userVote = null;
+        if (userId) {
+          const existingVote = await Vote.findOne({
+            where: { userId, pollId: poll.id },
+          });
+          if (existingVote) {
+            userVote = existingVote.pollOptionId; // The ID of the option the user voted for
+          }
+        }
 
-    res.status(200).json(data);
+        // 4) Transform poll into final JSON, attaching userVote
+        return {
+          id: poll.id,
+          question: poll.question,
+          createdAt: poll.createdAt,
+          allowComments: poll.allowComments,
+          commentCount: poll.Comments?.length || 0,
+          userVote,
+          user: poll.User
+            ? {
+                id: poll.User.id,
+                username: poll.User.username,
+                profilePicture: poll.User.profilePicture,
+              }
+            : null,
+          options: poll.options.map((opt) => ({
+            id: opt.id,
+            text: opt.optionText,
+            votes: opt.votes,
+          })),
+          comments: poll.Comments.map((c) => ({
+            id: c.id,
+            commentText: c.commentText,
+            userId: c.userId,
+          })),
+        };
+      })
+    );
+
+    // 5) Send the array of polls (with userVote) as JSON
+    return res.status(200).json(data);
   } catch (error) {
     next(error);
   }
@@ -69,6 +101,9 @@ exports.getAllPolls = async (req, res, next) => {
 // GET /api/polls/:id - Retrieve a specific poll by ID including comments
 exports.getPollById = async (req, res, next) => {
   try {
+    const userId = req.user.id; // or req.query.userId
+    const pollId = req.params.id;
+
     const poll = await Poll.findByPk(req.params.id, {
       include: [
         {
@@ -77,7 +112,9 @@ exports.getPollById = async (req, res, next) => {
         },
         {
           model: PollOption,
-          attributes: ['id', 'optionText', 'votes']
+          as: 'options',
+          attributes: ['id', 'optionText', 'votes'],
+          order: [['sortOrder', 'ASC']],
         },
         {
           model: Comment,
@@ -96,6 +133,16 @@ exports.getPollById = async (req, res, next) => {
       return res.status(404).json({ error: 'Poll not found' });
     }
 
+    let userVote = null;
+    if (userId) {
+      const existingVote = await Vote.findOne({
+        where: { userId, pollId: poll.id },
+      });
+      if (existingVote) {
+        userVote = existingVote.pollOptionId; // the ID of the voted option
+      }
+    }
+
     res.status(200).json({
       id: poll.id,
       question: poll.question,
@@ -108,7 +155,8 @@ exports.getPollById = async (req, res, next) => {
         profilePicture: poll.User.profilePicture,
       } 
       : null,
-      options: poll.PollOptions.map((opt) => ({
+      userVote,
+      options: poll.options.map((opt) => ({
         id: opt.id,
         text: opt.optionText,  // rename so the frontend sees "text"
         votes: opt.votes,

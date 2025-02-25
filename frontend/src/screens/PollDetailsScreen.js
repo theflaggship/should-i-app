@@ -12,7 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { PollsContext } from '../context/PollsContext';
+import { usePollsStore } from '../store/usePollsStore';
 import { sendVoteWS, sendCommentWS } from '../services/pollService';
 import PollCard from '../components/PollCard';
 import colors from '../styles/colors';
@@ -41,35 +41,45 @@ const getTimeElapsed = (createdAt) => {
 
 const PollDetailsScreen = ({ route }) => {
   const { user } = useContext(AuthContext);
-  const { polls, loading: pollsLoading, error: pollsError } = useContext(PollsContext);
-  const [commentText, setCommentText] = useState('');
   const { pollId } = route.params;
 
-  // Derive the poll from global context
-  const poll = polls.find((p) => p.id === pollId);
-
+  // Derive the poll from global PollStore
+  const polls = usePollsStore((state) => state.polls);
+  const loading = usePollsStore((state) => state.loading);
+  const error = usePollsStore((state) => state.error);
+  
+  const [commentText, setCommentText] = useState('');
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const navbarTranslate = scrollY.interpolate({
     inputRange: [0, 50],
     outputRange: [0, -35],
     extrapolate: 'clamp',
   });
+  
+  // Find the poll in global store
+  const poll = polls.find((p) => p.id === pollId);
 
-  // Function to submit a comment
+  // Submit a vote
+  const handleVote = (pollId, optionId) => {
+    if (!user || !user.id) return;
+    sendVoteWS(user.id, pollId, optionId);
+  };
+
+  // Submit a comment
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
     sendCommentWS(user.id, poll.id, commentText);
     setCommentText('');
   };
 
-  // if (pollsLoading) {
-  //   return (
-  //     <View style={styles.center}>
-  //       <ActivityIndicator size="large" color={colors.primary} />
-  //     </View>
-  //   );
-  // }
-  if (pollsError) {
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+  if (error) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Error: {pollsError}</Text>
@@ -92,7 +102,7 @@ const PollDetailsScreen = ({ route }) => {
       <View style={styles.pollCardContainer}>
         <PollCard
           poll={poll}
-          onVote={(pollId, optionId) => sendVoteWS(user.id, pollId, optionId)}
+          onVote={handleVote}
           allowComments={poll.allowComments}
           commentCount={poll.commentCount || comments.length || 0}
         />
@@ -102,9 +112,7 @@ const PollDetailsScreen = ({ route }) => {
       <AnimatedFlatList
         style={styles.commentsList}
         data={comments}
-        keyExtractor={(comment, index) =>
-          comment && comment.id ? comment.id.toString() : index.toString()
-        }
+        keyExtractor={(item, index) => (item?.id ? item.id.toString() : index.toString())}
         renderItem={({ item: comment }) => {
           if (!comment) return null;
           const userPic = comment.User?.profilePicture || DEFAULT_PROFILE_IMG;

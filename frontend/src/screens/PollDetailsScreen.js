@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
 import { sendVoteWS, sendCommentWS } from '../services/pollService';
@@ -20,7 +22,6 @@ import colors from '../styles/colors';
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
-// Helper to compute elapsed time (same as before)
 const getTimeElapsed = (createdAt) => {
   if (!createdAt) return '';
   const date = new Date(createdAt);
@@ -40,32 +41,30 @@ const getTimeElapsed = (createdAt) => {
 };
 
 const PollDetailsScreen = ({ route }) => {
+  const navigation = useNavigation();
   const { user } = useContext(AuthContext);
   const { pollId } = route.params;
 
-  // Derive the poll from global PollStore
   const polls = usePollsStore((state) => state.polls);
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
-  
+
   const [commentText, setCommentText] = useState('');
+
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const navbarTranslate = scrollY.interpolate({
     inputRange: [0, 50],
     outputRange: [0, -35],
     extrapolate: 'clamp',
   });
-  
-  // Find the poll in global store
+
   const poll = polls.find((p) => p.id === pollId);
 
-  // Submit a vote
   const handleVote = (pollId, optionId) => {
     if (!user || !user.id) return;
     sendVoteWS(user.id, pollId, optionId);
   };
 
-  // Submit a comment
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
     sendCommentWS(user.id, poll.id, commentText);
@@ -82,7 +81,7 @@ const PollDetailsScreen = ({ route }) => {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Error: {pollsError}</Text>
+        <Text style={styles.errorText}>Error: {error}</Text>
       </View>
     );
   }
@@ -94,21 +93,23 @@ const PollDetailsScreen = ({ route }) => {
     );
   }
 
-  // Use poll.comments if available (or an empty array)
   const comments = poll.comments || [];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeContainer} edges={['left', 'right', 'bottom']}>
+      {/* Taller navbar with extra padding */}
+      <Animated.View style={[styles.navbar, { transform: [{ translateY: navbarTranslate }] }]}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.navTitle}>Poll Details</Text>
+      </Animated.View>
+
+      {/* We offset the content below the taller navbar */}
       <View style={styles.pollCardContainer}>
-        <PollCard
-          poll={poll}
-          onVote={handleVote}
-          allowComments={poll.allowComments}
-          commentCount={poll.commentCount || comments.length || 0}
-        />
+        <PollCard poll={poll} onVote={handleVote} />
       </View>
 
-      {/* Comments List */}
       <AnimatedFlatList
         style={styles.commentsList}
         data={comments}
@@ -139,7 +140,6 @@ const PollDetailsScreen = ({ route }) => {
         scrollEventThrottle={16}
       />
 
-      {/* Comment Input */}
       {poll.allowComments && (
         <View style={styles.commentInputContainer}>
           <TextInput
@@ -157,19 +157,51 @@ const PollDetailsScreen = ({ route }) => {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default PollDetailsScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
+  },
+  navbar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    // Increase the height for a bigger bar
+    height: 80,
+    backgroundColor: colors.dark || '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    // Add extra padding at the top
+    paddingTop: 20,
+    // optional shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12, // keep it near the bottom of the navbar
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  navTitle: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '600',
   },
   pollCardContainer: {
+    marginTop: 80, // offset content below the navbar height
     marginHorizontal: 16,
     marginBottom: 16,
   },
@@ -184,11 +216,12 @@ const styles = StyleSheet.create({
   },
   commentsList: {
     flex: 1,
-    marginTop: 8,
   },
   commentItem: {
     flexDirection: 'row',
     marginBottom: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
   commentProfileImage: {
     width: 32,
@@ -210,7 +243,7 @@ const styles = StyleSheet.create({
   commentUsername: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.dark || '#000',
+    color: '#000',
   },
   commentTimestamp: {
     fontSize: 12,
@@ -225,6 +258,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   commentInput: {
     flex: 1,

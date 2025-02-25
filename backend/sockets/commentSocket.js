@@ -28,7 +28,7 @@ const setupCommentSocket = (wss) => {
             pollId, 
             comment: {
             id: commentWithUser.id,
-            text: commentWithUser.text,
+            text: commentWithUser.commentText,
             createdAt: commentWithUser.createdAt,
             User: commentWithUser.User // includes username, profilePicture
           } 

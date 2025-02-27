@@ -85,9 +85,9 @@ export const connectCommentSocket = (updateCommentState) => {
 
   commentSocket.onmessage = (event) => {
     // Expected message: { pollId: <id>, comment: { ... } }
-    const { pollId, comment } = JSON.parse(event.data);
+    const { userId, pollId, commentText } = JSON.parse(event.data);
     // Call the provided callback to update comments state
-    updateCommentState(pollId, comment);
+    updateCommentState(userId, pollId, commentText);
   };
 
   commentSocket.onclose = () => {
@@ -96,9 +96,9 @@ export const connectCommentSocket = (updateCommentState) => {
   };
 };
 
-export const sendCommentWS = (userId, pollId, text) => {
+export const sendCommentWS = (userId, pollId, commentText) => {
   if (commentSocket && commentSocket.readyState === WebSocket.OPEN) {
-    commentSocket.send(JSON.stringify({ userId, pollId, text }));
+    commentSocket.send(JSON.stringify({ userId, pollId, commentText }));
   } else {
     console.error('Comment WebSocket is not connected.');
   }

@@ -1,14 +1,14 @@
+// server.js
 require('dotenv').config();
 const express = require('express');
-const http = require('http'); // Needed for WebSocket server
+const http = require('http');
 const { Server } = require('ws'); // WebSocket Server
 const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new Server({ server }); // Create WebSocket Server
 
-// Middleware to parse JSON bodies
+// Middleware
 app.use(express.json());
 app.use(cors());
 
@@ -21,9 +21,6 @@ const commentRoutes = require('./routes/comments');
 const followRoutes = require('./routes/follow');
 const searchRoutes = require('./routes/search');
 const categoryRoutes = require('./routes/categories');
-
-// Import WebSocket handling
-const setupVoteSocket = require('./sockets/voteSocket');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -39,8 +36,16 @@ app.use('/api/categories', categoryRoutes);
 const errorHandler = require('./middlewares/errorHandler');
 app.use(errorHandler);
 
-// Setup WebSocket events
+// Import WebSocket handlers
+const setupVoteSocket = require('./sockets/voteSocket');
+const setupCommentSocket = require('./sockets/commentSocket');
+
+// Create ONE WebSocket server for everything
+const wss = new Server({ server });
+
+// Let each socket handler decide which path to handle
 setupVoteSocket(wss);
+setupCommentSocket(wss);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

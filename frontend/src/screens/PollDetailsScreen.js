@@ -60,11 +60,6 @@ const PollDetailsScreen = ({ route }) => {
 
   const poll = polls.find((p) => p.id === pollId);
 
-  const handleVote = (pollId, optionId) => {
-    if (!user || !user.id) return;
-    sendVoteWS(user.id, pollId, optionId);
-  };
-
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
     sendCommentWS(user.id, poll.id, commentText);
@@ -107,7 +102,7 @@ const PollDetailsScreen = ({ route }) => {
 
       {/* We offset the content below the taller navbar */}
       <View style={styles.pollCardContainer}>
-        <PollCard poll={poll} onVote={handleVote} />
+        <PollCard poll={poll}/>
       </View>
 
       <AnimatedFlatList

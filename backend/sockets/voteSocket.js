@@ -1,9 +1,21 @@
-// backend/sockets/voteSocket.js
+// sockets/voteSocket.js
 const { Poll, PollOption, Vote } = require('../models');
+const WebSocket = require('ws');
 
 const setupVoteSocket = (wss) => {
-  wss.on('connection', (ws) => {
+  wss.on('connection', async (ws, request) => {
+    // If this is "/comments", skip vote logic
+    if (request.url === '/comments') {
+      return;
+    }
+
     console.log('Client connected to Vote WebSocket');
+
+    // Handle socket errors so they don't crash the server
+    ws.on('error', (err) => {
+      console.error('Vote WebSocket error on a client:', err);
+      ws.close(); // gracefully close
+    });
 
     ws.on('message', async (rawMessage) => {
       try {
@@ -13,33 +25,29 @@ const setupVoteSocket = (wss) => {
           return;
         }
 
-        // 1. Check if user already voted in this poll
+        // 1) Check if user already voted in this poll
         let existingVote = await Vote.findOne({ where: { userId, pollId } });
         if (existingVote) {
-          // User has an existing vote
+          // Already voted
           if (existingVote.pollOptionId === pollOptionId) {
-            // A) User tapped the same option => remove vote (unvote)
+            // Unvote
             await existingVote.destroy();
 
-            // Decrement that option's votes
             const sameOption = await PollOption.findByPk(pollOptionId);
             if (sameOption) {
               sameOption.votes = Math.max(sameOption.votes - 1, 0);
               await sameOption.save();
             }
           } else {
-            // B) User tapped a different option => switch vote
-            // Decrement old option
+            // Switch vote
             const oldOption = await PollOption.findByPk(existingVote.pollOptionId);
             if (oldOption) {
               oldOption.votes = Math.max(oldOption.votes - 1, 0);
               await oldOption.save();
             }
-            // Update the existing vote to the new option
             existingVote.pollOptionId = pollOptionId;
             await existingVote.save();
 
-            // Increment new option
             const newOption = await PollOption.findByPk(pollOptionId);
             if (newOption) {
               newOption.votes += 1;
@@ -47,10 +55,9 @@ const setupVoteSocket = (wss) => {
             }
           }
         } else {
-          // C) No existing vote => create a new vote
+          // No existing vote => create
           await Vote.create({ userId, pollId, pollOptionId });
 
-          // Increment that option's vote count
           const option = await PollOption.findByPk(pollOptionId);
           if (option) {
             option.votes += 1;
@@ -58,35 +65,38 @@ const setupVoteSocket = (wss) => {
           }
         }
 
-        // 2. Broadcast updated poll data (including new total votes)
+        // 2) Broadcast updated poll data
         const poll = await Poll.findByPk(pollId, {
           include: [
             {
               model: PollOption,
-              as: 'options',        // Must match the alias in your model
+              as: 'options',
               attributes: ['id', 'optionText', 'votes', 'sortOrder'],
-              order: [['sortOrder', 'ASC']]
+              order: [['sortOrder', 'ASC']],
             },
           ],
         });
 
-        // Construct the updated data to send
         const updatedPollData = JSON.stringify({
           pollId: poll.id,
           options: poll.options.map((opt) => ({
             id: opt.id,
-            text: opt.optionText,     // rename to text
+            text: opt.optionText,
             votes: opt.votes,
           })),
         });
 
-        // Broadcast to all connected WebSocket clients
+        // Broadcast to all connected clients
         wss.clients.forEach((client) => {
-          if (client.readyState === ws.OPEN) {
-            client.send(updatedPollData);
+          if (client.readyState === WebSocket.OPEN) {
+            try {
+              client.send(updatedPollData);
+            } catch (sendErr) {
+              console.error('Error sending to a vote client:', sendErr);
+              client.close();
+            }
           }
         });
-
       } catch (err) {
         console.error('Vote WebSocket Error:', err);
       }

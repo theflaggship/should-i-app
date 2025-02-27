@@ -43,7 +43,8 @@ exports.getAllPolls = async (req, res, next) => {
         },
         {
           model: Comment,
-          attributes: ['id', 'commentText', 'userId']
+          attributes: ['id', 'commentText', 'createdAt'],
+          include: [{ model: User, attributes: ['id', 'username', 'profilePicture'] }]
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -84,9 +85,16 @@ exports.getAllPolls = async (req, res, next) => {
           })),
           comments: poll.Comments.map((c) => ({
             id: c.id,
-            commentText: c.commentText,
-            userId: c.userId,
-          })),
+            text: c.commentText,
+            createdAt: c.createdAt,
+            User: c.User
+              ? {
+                  id: c.User.id,          
+                  username: c.User.username,
+                  profilePicture: c.User.profilePicture
+                }
+              : null
+          }))
         };
       })
     );
@@ -99,12 +107,13 @@ exports.getAllPolls = async (req, res, next) => {
 };
 
 // GET /api/polls/:id - Retrieve a specific poll by ID including comments
+// GET /api/polls/:id - Retrieve a specific poll by ID including comments
 exports.getPollById = async (req, res, next) => {
   try {
     const userId = req.user.id; // or req.query.userId
     const pollId = req.params.id;
 
-    const poll = await Poll.findByPk(req.params.id, {
+    const poll = await Poll.findByPk(pollId, {
       include: [
         {
           model: User,
@@ -118,11 +127,11 @@ exports.getPollById = async (req, res, next) => {
         },
         {
           model: Comment,
-          attributes: ['id', 'commentText', 'userId'],
+          attributes: ['id', 'commentText', 'createdAt', 'userId'], // Include createdAt so you can see it
           include: [
             {
-            model: User,
-            attributes: ['id', 'username', 'profilePicture'] // ✅ Include user info for comments
+              model: User,
+              attributes: ['id', 'username', 'profilePicture']
             }
           ]
         }
@@ -143,6 +152,7 @@ exports.getPollById = async (req, res, next) => {
       }
     }
 
+    // Construct the response
     res.status(200).json({
       id: poll.id,
       question: poll.question,
@@ -150,20 +160,20 @@ exports.getPollById = async (req, res, next) => {
       allowComments: poll.allowComments,
       commentCount: poll.Comments?.length || 0,
       user: poll.User
-      ? {
-        username: poll.User.username,
-        profilePicture: poll.User.profilePicture,
-      } 
-      : null,
+        ? {
+            username: poll.User.username,
+            profilePicture: poll.User.profilePicture,
+          }
+        : null,
       userVote,
       options: poll.options.map((opt) => ({
         id: opt.id,
-        text: opt.optionText,  // rename so the frontend sees "text"
+        text: opt.optionText, // rename so the frontend sees "text"
         votes: opt.votes,
       })),
       comments: (poll.Comments || []).map((c) => ({
         id: c.id,
-        text: c.text,
+        text: c.commentText,
         createdAt: c.createdAt,
         User: c.User
           ? {
@@ -178,7 +188,6 @@ exports.getPollById = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // PUT /api/polls/:id - Update a poll by ID
 exports.updatePoll = async (req, res, next) => {

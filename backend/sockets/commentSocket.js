@@ -1,41 +1,58 @@
-// commentSocket.js
+// sockets/commentSocket.js
 const { Comment, User } = require('../models');
+const WebSocket = require('ws');
 
 const setupCommentSocket = (wss) => {
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, request) => {
+    // If NOT "/comments", skip comment logic
+    if (request.url !== '/comments') {
+      return;
+    }
+
     console.log('Client connected to Comment WebSocket');
+
+    // Handle socket-level errors
+    ws.on('error', (err) => {
+      console.error('Comment WebSocket error on a client:', err);
+      ws.close();
+    });
 
     ws.on('message', async (rawMessage) => {
       try {
-        // Parse the incoming data
-        const { userId, pollId, text } = JSON.parse(rawMessage);
-
-        if (!userId || !pollId || !text) {
-          console.error('Missing userId, pollId, or text');
+        const { userId, pollId, commentText } = JSON.parse(rawMessage);
+        if (!userId || !pollId || !commentText) {
+          console.error('Missing userId, pollId, or commentText');
           return;
         }
 
-        // Create the comment in the database
-        const newComment = await Comment.create({ userId, pollId, text });
+        // Create the comment
+        const newComment = await Comment.create({ userId, pollId, commentText });
 
-        // Optionally include user details for the new comment
+        // Include user details
         const commentWithUser = await Comment.findByPk(newComment.id, {
           include: [{ model: User, attributes: ['id', 'username', 'profilePicture'] }],
         });
 
-        // Broadcast the new comment to all connected clients
-        const message = JSON.stringify({ 
-            pollId, 
-            comment: {
+        // Prepare broadcast data
+        const updatedCommentData = JSON.stringify({
+          pollId,
+          comment: {
             id: commentWithUser.id,
             text: commentWithUser.commentText,
             createdAt: commentWithUser.createdAt,
-            User: commentWithUser.User // includes username, profilePicture
-          } 
+            User: commentWithUser.User,
+          },
         });
+
+        // Broadcast
         wss.clients.forEach((client) => {
-          if (client.readyState === ws.OPEN) {
-            client.send(message);
+          if (client.readyState === WebSocket.OPEN) {
+            try {
+              client.send(updatedCommentData);
+            } catch (sendErr) {
+              console.error('Error sending to a comment client:', sendErr);
+              client.close();
+            }
           }
         });
       } catch (error) {

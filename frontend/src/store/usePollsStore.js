@@ -12,8 +12,7 @@ export const usePollsStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const data = await getPolls(token);
-      // We'll trust the backend to return valid polls (no null items)
-      // Just store them as is, or do minimal transform
+      // We'll trust the backend to return valid polls
       set({ polls: data });
     } catch (err) {
       set({ error: err.message || 'Something went wrong' });
@@ -22,8 +21,8 @@ export const usePollsStore = create((set, get) => ({
     }
   },
 
-  // 2) Update poll state (vote updates) - skip commentCount
-  updatePollState: (pollId, updatedOptions) => {
+  // 2) Update poll state (vote updates) - handle userVote + options
+  updatePollState: (pollId, userVote, updatedOptions) => {
     set((state) => {
       // If pollId or updatedOptions is missing, do nothing
       if (!pollId || !updatedOptions) {
@@ -31,17 +30,15 @@ export const usePollsStore = create((set, get) => ({
       }
 
       const newPolls = state.polls.map((p) => {
-        // If this poll doesn't match pollId, no update
         if (p.id !== pollId) {
-          return p;
+          return p; // no update for this poll
         }
 
-        // We'll do partial merges for each option
-        // ignoring any commentCount from the broadcast
+        // Merge each updated option, ignoring commentCount
         const mergedOptions = p.options.map((oldOpt) => {
           const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
           if (!newOpt) {
-            return oldOpt; // no update
+            return oldOpt;
           }
           return {
             ...oldOpt,
@@ -53,8 +50,10 @@ export const usePollsStore = create((set, get) => ({
         return {
           ...p,
           options: mergedOptions,
-          // Keep the existing commentCount
+          // Keep existing commentCount
           commentCount: p.commentCount,
+          // NEW: store the userVote from the broadcast
+          userVote: userVote ?? null,
         };
       });
 
@@ -79,7 +78,6 @@ export const usePollsStore = create((set, get) => ({
         return {
           ...p,
           comments: updatedComments,
-          // ONLY comment logic can set commentCount
           commentCount: updatedComments.length,
         };
       });
@@ -93,8 +91,8 @@ export const usePollsStore = create((set, get) => ({
     get().fetchAllPolls(token);
 
     // Vote socket
-    connectVoteSocket((pollId, options) => {
-      get().updatePollState(pollId, options);
+    connectVoteSocket((pollId, userVote, options) => {
+      get().updatePollState(pollId, userVote, options);
     });
 
     // Comment socket

@@ -53,10 +53,10 @@ export const connectVoteSocket = (updatePollState) => {
 
   voteSocket.onmessage = (event) => {
     // The server sends: { pollId, options: [ { id, text, votes }, ... ] }
-    const { pollId, options } = JSON.parse(event.data);
+    const { pollId, userVote, options } = JSON.parse(event.data);
 
     // Pass the array directly to updatePollState
-    updatePollState(pollId, options);
+    updatePollState(pollId, userVote, options);
   };
 
   voteSocket.onclose = () => {

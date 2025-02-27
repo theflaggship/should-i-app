@@ -3,7 +3,7 @@ const { Poll, PollOption, Vote } = require('../models');
 const WebSocket = require('ws');
 
 const setupVoteSocket = (wss) => {
-  wss.on('connection', async (ws, request) => {
+  wss.on('connection', (ws, request) => {
     // If this is "/comments", skip vote logic
     if (request.url === '/comments') {
       return;
@@ -77,8 +77,16 @@ const setupVoteSocket = (wss) => {
           ],
         });
 
+        // Figure out the user's current vote (if any)
+        let userVote = null;
+        const finalVote = await Vote.findOne({ where: { userId, pollId } });
+        if (finalVote) {
+          userVote = finalVote.pollOptionId;
+        }
+
         const updatedPollData = JSON.stringify({
           pollId: poll.id,
+          userVote, // <-- Now we include the user's voted option
           options: poll.options.map((opt) => ({
             id: opt.id,
             text: opt.optionText,

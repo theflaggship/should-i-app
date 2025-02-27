@@ -12,7 +12,12 @@ export const usePollsStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const data = await getPolls(token);
-      // We'll trust the backend to return valid polls
+      // Sort comments in each poll by ascending createdAt
+      data.forEach((poll) => {
+        if (Array.isArray(poll.comments)) {
+          poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
+      });
       set({ polls: data });
     } catch (err) {
       set({ error: err.message || 'Something went wrong' });
@@ -31,10 +36,10 @@ export const usePollsStore = create((set, get) => ({
 
       const newPolls = state.polls.map((p) => {
         if (p.id !== pollId) {
-          return p; // no update for this poll
+          return p; // no update
         }
 
-        // Merge each updated option, ignoring commentCount
+        // Merge each updated option
         const mergedOptions = p.options.map((oldOpt) => {
           const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
           if (!newOpt) {
@@ -50,10 +55,8 @@ export const usePollsStore = create((set, get) => ({
         return {
           ...p,
           options: mergedOptions,
-          // Keep existing commentCount
-          commentCount: p.commentCount,
-          // NEW: store the userVote from the broadcast
-          userVote: userVote ?? null,
+          commentCount: p.commentCount, // keep existing
+          userVote: userVote ?? null,   // store the userVote
         };
       });
 
@@ -61,7 +64,7 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
-  // 3) Update comment state (only place that changes commentCount)
+  // 3) Update comment state
   updateCommentState: (pollId, newComment) => {
     set((state) => {
       if (!pollId || !newComment) {
@@ -74,6 +77,12 @@ export const usePollsStore = create((set, get) => ({
         }
         const oldComments = Array.isArray(p.comments) ? p.comments : [];
         const updatedComments = [newComment, ...oldComments];
+
+        updatedComments.sort((a, b) => {
+          const dateA = new Date(a.createdAt);
+          const dateB = new Date(b.createdAt);
+          return dateA - dateB; // ascending order
+        });
 
         return {
           ...p,
@@ -90,12 +99,12 @@ export const usePollsStore = create((set, get) => ({
   initPolls: (token) => {
     get().fetchAllPolls(token);
 
-    // Vote socket
+    // Vote socket: pass a callback
     connectVoteSocket((pollId, userVote, options) => {
       get().updatePollState(pollId, userVote, options);
     });
 
-    // Comment socket
+    // Comment socket: pass a callback
     connectCommentSocket((pollId, comment) => {
       get().updateCommentState(pollId, comment);
     });

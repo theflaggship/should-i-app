@@ -44,24 +44,23 @@ export const getCommentsForPoll = async (pollId) => {
 // ---------------------
 // Vote WebSocket Logic
 // ---------------------
-export const connectVoteSocket = (updatePollState) => {
-  voteSocket = new WebSocket('ws://localhost:3000'); // Adjust for production
+export const connectVoteSocket = (onVoteUpdate) => {
+  // onVoteUpdate is a callback, e.g. (pollId, userVote, options) => ...
+  voteSocket = new WebSocket('ws://localhost:3000'); // default path
 
   voteSocket.onopen = () => {
     console.log('Vote WebSocket connected');
   };
 
   voteSocket.onmessage = (event) => {
-    // The server sends: { pollId, options: [ { id, text, votes }, ... ] }
+    // The server sends: { pollId, userVote, options: [...] }
     const { pollId, userVote, options } = JSON.parse(event.data);
-
-    // Pass the array directly to updatePollState
-    updatePollState(pollId, userVote, options);
+    onVoteUpdate(pollId, userVote, options);
   };
 
   voteSocket.onclose = () => {
     console.log('Vote WebSocket disconnected, attempting to reconnect...');
-    setTimeout(() => connectVoteSocket(updatePollState), 3000); // Auto-reconnect
+    setTimeout(() => connectVoteSocket(onVoteUpdate), 3000); // Auto-reconnect
   };
 };
 
@@ -76,23 +75,23 @@ export const sendVoteWS = (userId, pollId, pollOptionId) => {
 // -------------------------
 // Comment WebSocket Logic
 // -------------------------
-export const connectCommentSocket = (updateCommentState) => {
-  commentSocket = new WebSocket('ws://localhost:3000/comments'); // Adjust URL as needed
+export const connectCommentSocket = (onNewComment) => {
+  // onNewComment is a callback, e.g. (pollId, comment) => ...
+  commentSocket = new WebSocket('ws://localhost:3000/comments');
 
   commentSocket.onopen = () => {
     console.log('Comment WebSocket connected');
   };
 
   commentSocket.onmessage = (event) => {
-    // Expected message: { pollId: <id>, comment: { ... } }
-    const { userId, pollId, commentText } = JSON.parse(event.data);
-    // Call the provided callback to update comments state
-    updateCommentState(userId, pollId, commentText);
+    // The server broadcasts: { pollId, comment: { id, text, createdAt, User } }
+    const { pollId, comment } = JSON.parse(event.data);
+    onNewComment(pollId, comment);
   };
 
   commentSocket.onclose = () => {
     console.log('Comment WebSocket disconnected, attempting to reconnect...');
-    setTimeout(() => connectCommentSocket(updateCommentState), 3000); // Auto-reconnect
+    setTimeout(() => connectCommentSocket(onNewComment), 3000);
   };
 };
 

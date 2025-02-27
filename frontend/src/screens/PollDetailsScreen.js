@@ -5,7 +5,6 @@ import {
   Text,
   ActivityIndicator,
   StyleSheet,
-  Animated,
   Image,
   TextInput,
   TouchableOpacity,
@@ -15,13 +14,13 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
-import { sendVoteWS, sendCommentWS } from '../services/pollService';
+import { sendCommentWS } from '../services/pollService';
 import PollCard from '../components/PollCard';
 import colors from '../styles/colors';
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
+// Simple time-ago helper
 const getTimeElapsed = (createdAt) => {
   if (!createdAt) return '';
   const date = new Date(createdAt);
@@ -45,24 +44,39 @@ const PollDetailsScreen = ({ route }) => {
   const { user } = useContext(AuthContext);
   const { pollId } = route.params;
 
+  // Global store data
   const polls = usePollsStore((state) => state.polls);
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
   const [commentText, setCommentText] = useState('');
 
-  const scrollY = React.useRef(new Animated.Value(0)).current;
-  const navbarTranslate = scrollY.interpolate({
-    inputRange: [0, 50],
-    outputRange: [0, -35],
-    extrapolate: 'clamp',
-  });
-
+  // Find the poll in the store
   const poll = polls.find((p) => p.id === pollId);
 
+  // Submit a new comment with optimistic update
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
+
+    // 1) Create a local "temp" comment
+    const tempComment = {
+      id: 'temp-' + Date.now(),
+      text: commentText,
+      createdAt: new Date().toISOString(),
+      User: {
+        id: user.id,
+        username: user.username,
+        profilePicture: user.profilePicture,
+      },
+    };
+
+    // 2) Immediately update the store
+    usePollsStore.getState().updateCommentState(poll.id, tempComment);
+
+    // 3) Send the actual comment to the server
     sendCommentWS(user.id, poll.id, commentText);
+
+    // 4) Clear the input
     setCommentText('');
   };
 
@@ -88,24 +102,25 @@ const PollDetailsScreen = ({ route }) => {
     );
   }
 
+  // Existing or newly added comments
   const comments = poll.comments || [];
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['left', 'right', 'bottom']}>
-      {/* Taller navbar with extra padding */}
-      <Animated.View style={[styles.navbar, { transform: [{ translateY: navbarTranslate }] }]}>
+      {/* Static header at the top */}
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Poll Details</Text>
-      </Animated.View>
-
-      {/* We offset the content below the taller navbar */}
-      <View style={styles.pollCardContainer}>
-        <PollCard poll={poll}/>
+        <Text style={styles.headerTitle}>Poll Details</Text>
       </View>
 
-      <AnimatedFlatList
+      {/* Add more space below the header */}
+      <View style={styles.pollCardContainer}>
+        <PollCard poll={poll} />
+      </View>
+
+      <FlatList
         style={styles.commentsList}
         data={comments}
         keyExtractor={(item, index) => (item?.id ? item.id.toString() : index.toString())}
@@ -113,6 +128,7 @@ const PollDetailsScreen = ({ route }) => {
           if (!comment) return null;
           const userPic = comment.User?.profilePicture || DEFAULT_PROFILE_IMG;
           const username = comment.User?.username || 'Unknown';
+
           return (
             <View style={styles.commentItem}>
               <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
@@ -128,13 +144,9 @@ const PollDetailsScreen = ({ route }) => {
             </View>
           );
         }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
       />
 
+      {/* Comment Input */}
       {poll.allowComments && (
         <View style={styles.commentInputContainer}>
           <TextInput
@@ -163,43 +175,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  navbar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    // Increase the height for a bigger bar
-    height: 80,
+  // Static header
+  header: {
+    height: 100,
     backgroundColor: colors.dark || '#333',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    zIndex: 10,
-    // Add extra padding at the top
-    paddingTop: 20,
     // optional shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
+    paddingBottom: 16,
   },
   backButton: {
     position: 'absolute',
-    left: 12,
-    bottom: 12, // keep it near the bottom of the navbar
+    left: 16,
+    // Move it up or down within the header
+    bottom: 16, // was 12, now 16 for a bit more spacing
   },
   backButtonText: {
     color: '#fff',
     fontSize: 16,
   },
-  navTitle: {
-    fontSize: 18,
+  headerTitle: {
     color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
   },
+
+  // Extra margin to push poll card below header
   pollCardContainer: {
-    marginTop: 80, // offset content below the navbar height
+    marginTop: 16,
     marginHorizontal: 16,
-    marginBottom: 16,
   },
+
   center: {
     flex: 1,
     justifyContent: 'center',

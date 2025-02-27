@@ -117,7 +117,7 @@ const PollDetailsScreen = ({ route }) => {
 
       {/* Add more space below the header */}
       <View style={styles.pollCardContainer}>
-        <PollCard poll={poll} />
+        <PollCard poll={poll} showDetailedTimestamp />
       </View>
 
       <FlatList

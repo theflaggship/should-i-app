@@ -70,30 +70,43 @@ export const usePollsStore = create((set, get) => ({
       if (!pollId || !newComment) {
         return { polls: state.polls };
       }
-
+  
       const newPolls = state.polls.map((p) => {
         if (p.id !== pollId) {
           return p;
         }
         const oldComments = Array.isArray(p.comments) ? p.comments : [];
-        const updatedComments = [newComment, ...oldComments];
-
-        updatedComments.sort((a, b) => {
-          const dateA = new Date(a.createdAt);
-          const dateB = new Date(b.createdAt);
-          return dateA - dateB; // ascending order
+  
+        // Find if there's a "temp" comment with the same text & user
+        // so we can replace it with the real one from the server
+        let updatedComments = [...oldComments];
+        const existingIndex = updatedComments.findIndex((c) => {
+          // If c.id is numeric, "typeof c.id" is "number", so skip
+          const isTemp = (typeof c.id === 'string') && c.id.startsWith('temp-');
+          const sameText = c.text === newComment.text;
+          const sameUser = c.User?.id === newComment.User?.id;
+          return isTemp && sameText && sameUser;
         });
-
+  
+        if (existingIndex > -1) {
+          // Overwrite the temp comment with the real comment
+          updatedComments[existingIndex] = newComment;
+        } else {
+          // Normal case: no matching temp, so prepend the new comment
+          updatedComments = [newComment, ...updatedComments];
+        }
+  
         return {
           ...p,
           comments: updatedComments,
           commentCount: updatedComments.length,
         };
       });
-
+  
       return { polls: newPolls };
     });
   },
+  
 
   // 4) Initialize store: fetch + connect websockets
   initPolls: (token) => {

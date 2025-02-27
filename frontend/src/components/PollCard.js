@@ -1,5 +1,5 @@
 // PollCard.js
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useContext } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVoteWS } from '../services/pollService';
@@ -9,68 +9,70 @@ import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
-const PollCard = ({ poll }) => {
+const getTimeElapsed = (createdAt) => {
+  if (!createdAt) return '';
+  const date = new Date(createdAt);
+  const now = new Date();
+  const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+  if (diffInMinutes < 60) return `${diffInMinutes}m`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}h`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) return `${diffInDays}d`;
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) return `${diffInWeeks}w`;
+  const diffInMonths = Math.floor(diffInDays / 30);
+  if (diffInMonths < 12) return `${diffInMonths}mo`;
+  const diffInYears = Math.floor(diffInMonths / 12);
+  return `${diffInYears}y`;
+};
+
+const formatDetailedDate = (createdAt) => {
+  if (!createdAt) return '';
+  const dateObj = new Date(createdAt);
+
+  // We'll use toLocaleString with some options
+  const options = {
+    month: 'long',   // "February"
+    day: 'numeric',  // "27"
+    year: 'numeric', // "2025"
+    hour: 'numeric', // "12"
+    minute: '2-digit', // "00"
+    hour12: true,    // "PM" vs. 24-hour
+  };
+  let formatted = dateObj.toLocaleString('en-US', options);
+  formatted = formatted.replace(',', '');     // remove first comma
+  formatted = formatted.replace(',', ' at');  // replace second comma with " at"
+  return formatted;
+};
+
+const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestamp = false }) => {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
-  // 1) Locally track the user's current vote for instant UI updates
-  const [localUserVote, setLocalUserVote] = useState(poll?.userVote || null);
-
-  // 2) Whenever the poll object changes (e.g. new fetch or WebSocket update),
-  //    sync localUserVote with poll.userVote (if your backend sets it)
-  useEffect(() => {
-    setLocalUserVote(poll?.userVote || null);
-  }, [poll?.userVote, poll?.id]);
-
-  // Safely handle poll.options
+  const userVote = poll?.userVote;
   const pollOptions = poll?.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
 
-  // Show a "0 Votes" or percentage string
-  const getVotePercentage = (optionVotes) => {
-    if (!optionVotes || totalVotes === 0) return '0 Votes';
-    return `${Math.round((optionVotes / totalVotes) * 100)}%`;
-  };
-
-  // Simple time-ago helper
-  const getTimeElapsed = (createdAt) => {
-    if (!createdAt) return '';
-    const pollDate = new Date(createdAt);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now - pollDate) / (1000 * 60));
-    if (diffInMinutes < 60) return `${diffInMinutes}m`;
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours}h`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d`;
-    const diffInWeeks = Math.floor(diffInDays / 7);
-    if (diffInWeeks < 4) return `${diffInWeeks}w`;
-    const diffInMonths = Math.floor(diffInDays / 30);
-    if (diffInMonths < 12) return `${diffInMonths}mo`;
-    const diffInYears = Math.floor(diffInMonths / 12);
-    return `${diffInYears}y`;
-  };
-
-  // 3) Handle user tapping an option
   const handleOptionPress = (optionId) => {
     if (!user || !user.id) return;
-
-    // Optimistic update: change localUserVote right away
-    if (localUserVote === optionId) {
-      setLocalUserVote(null); // unvote
+    if (onVote) {
+      onVote(poll.id, optionId);
     } else {
-      setLocalUserVote(optionId); // switch to new option
+      sendVoteWS(user.id, poll.id, optionId);
     }
-
-    // Send the vote to the server via WebSocket
-    sendVoteWS(user.id, poll.id, optionId);
   };
 
-  // 4) Navigate to PollDetails if the poll allows comments
-  const handleCommentsPress = () => {
-    if (poll?.id) {
+  const handleNavigateToDetails = () => {
+    if (!disableMainPress && poll?.id) {
       navigation.navigate('PollDetails', { pollId: poll.id });
     }
+  };
+
+  const handleNavigateToProfile = () => {
+    if (!poll?.user?.id) return;
+    // Future user profile screen:
+    navigation.navigate('UserProfile', { userId: poll.user.id });
   };
 
   if (!poll) {
@@ -83,94 +85,143 @@ const PollCard = ({ poll }) => {
 
   return (
     <View style={styles.card}>
-      {/* Header Row: User info + timestamp */}
-      <View style={styles.userRow}>
-        <Image
-          source={{ uri: poll?.user?.profilePicture || DEFAULT_PROFILE_IMG }}
-          style={styles.profileImage}
-        />
-        <Text style={styles.username}>{poll?.user?.username ?? 'Unknown'}</Text>
-        <Text style={styles.timestamp}>{getTimeElapsed(poll?.createdAt)}</Text>
-      </View>
+      <TouchableOpacity
+        style={styles.userRow}
+        activeOpacity={0.8}
+        onPress={handleNavigateToDetails}
+      >
+        {/* Overlaid child pressable for profile pic + username => user profile */}
+        <TouchableOpacity
+          style={styles.userRowLeft}
+          // onPress={handleNavigateToProfile}
+          activeOpacity={0.8}
+          // This ensures taps on userRowLeft don't bubble to the parent
+          pointerEvents="box-only"
+        >
+          <Image
+            source={{ uri: poll?.user?.profilePicture || DEFAULT_PROFILE_IMG }}
+            style={styles.profileImage}
+          />
+          <Text style={styles.username}>{poll?.user?.username ?? 'Unknown'}</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.question}>{poll?.question ?? 'No question'}</Text>
-
-      {/* Render poll options */}
-      <View style={styles.optionsContainer}>
-        {pollOptions.map((option) => {
-          const isVoted = localUserVote === option.id;
-          const percentage = getVotePercentage(option.votes);
-
-          return (
-            <TouchableOpacity
-              key={option.id}
-              style={[styles.optionContainer, isVoted && styles.selectedOptionBorder]}
-              onPress={() => handleOptionPress(option.id)}
-            >
-              <View
-                style={[
-                  styles.fillBar,
-                  { width: percentage, backgroundColor: isVoted ? '#b1f3e7' : '#dbe4ed' },
-                ]}
-              />
-              <View style={styles.optionContent}>
-                <View style={styles.optionLeft}>
-                  {isVoted && (
-                    <View style={styles.checkMarkContainer}>
-                      <View style={styles.singleVoteCircle}>
-                        <Check stroke-width="1.5" width={12} color="#21D0B2" />
-                      </View>
-                    </View>
-                  )}
-                  <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
-                    {option.text}
-                  </Text>
-                </View>
-                <Text style={[styles.percentageText, isVoted && styles.selectedOptionText]}>
-                  {percentage}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Bottom row: comment count + total votes */}
-      <View style={styles.bottomRow}>
-        {poll.allowComments && (
-          <TouchableOpacity style={styles.commentContainer} onPress={handleCommentsPress}>
-            <MessageCircle width={18} color="gray" style={styles.commentIcon} />
-            <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
+        {/* The rest of the row (including timestamp) => poll details */}
+        {!showDetailedTimestamp && (
+          <TouchableOpacity
+            style={styles.userRowRight}
+            onPress={handleNavigateToDetails}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.timestamp}>
+              {getTimeElapsed(poll?.createdAt)}
+            </Text>
           </TouchableOpacity>
         )}
-        <View style={styles.voteContainer}>
-          <View style={styles.checkMarkContainer}>
-            <View style={styles.totalVoteCircle}>
-              <Check width={12} color="gray" style={styles.totalVoteCheck} />
-            </View>
-          </View>
-          <Text style={styles.voteCount}>{totalVotes}</Text>
+      </TouchableOpacity>
+
+      {/* Main body: question + bottom row => poll details (unless disabled) */}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        disabled={disableMainPress}
+        onPress={handleNavigateToDetails}
+        style={styles.mainBody}
+      >
+        <Text style={styles.question}>{poll?.question ?? 'No question'}</Text>
+
+        {/* Voting options => cast vote */}
+        <View style={styles.optionsContainer}>
+          {pollOptions.map((option) => {
+            const isVoted = userVote === option.id;
+            const votes = option.votes || 0;
+            const percentage = totalVotes === 0
+              ? '0%'
+              : `${Math.round((votes / totalVotes) * 100)}%`;
+
+            return (
+              <TouchableOpacity
+                key={option.id}
+                style={[styles.optionContainer, isVoted && styles.selectedOptionBorder]}
+                onPress={() => handleOptionPress(option.id)}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.fillBar,
+                    { width: percentage, backgroundColor: isVoted ? '#b1f3e7' : '#dbe4ed' },
+                  ]}
+                />
+                <View style={styles.optionContent}>
+                  <View style={styles.optionLeft}>
+                    {isVoted && (
+                      <View style={styles.checkMarkContainer}>
+                        <View style={styles.singleVoteCircle}>
+                          <Check width={12} color="#21D0B2" />
+                        </View>
+                      </View>
+                    )}
+                    <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
+                      {option.text}
+                    </Text>
+                  </View>
+                  <Text style={[styles.percentageText, isVoted && styles.selectedOptionText]}>
+                    {percentage}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-      </View>
+        {/* If showDetailedTimestamp is true, we show the new date below the options */}
+        {showDetailedTimestamp && (
+          <Text style={styles.detailedTimestamp}>
+            {formatDetailedDate(poll?.createdAt)}
+          </Text>
+        )}
+        {/* Bottom row: comment + total votes => poll details if disableMainPress=false */}
+        <View style={styles.bottomRow}>
+          {poll.allowComments && (
+            <View style={styles.commentContainer}>
+              <MessageCircle width={18} color="gray" style={styles.commentIcon} />
+              <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
+            </View>
+          )}
+          <View style={styles.voteContainer}>
+            <View style={styles.checkMarkContainer}>
+              <View style={styles.totalVoteCircle}>
+                <Check width={12} color="gray" style={styles.totalVoteCheck} />
+              </View>
+            </View>
+            <Text style={styles.voteCount}>{totalVotes}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
     </View>
   );
 };
 
 export default PollCard;
 
-/* ------------- STYLES ------------- */
+// -------------- STYLES --------------
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    // The row is split into left and right pressables
+  },
+  userRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userRowRight: {
+    marginLeft: 'auto', // push to the right
   },
   profileImage: {
     width: 40,
@@ -183,6 +234,7 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontWeight: '600',
   },
+  // Original top-right "time elapsed"
   timestamp: {
     fontSize: 12,
     color: 'gray',
@@ -223,12 +275,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  checkMarkContainer: {
+    marginRight: 0,
+  },
+  singleVoteCircle: {
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: colors.secondary,
+    borderWidth: 1.2,
+    marginRight: 5,
+  },
   optionText: {
     fontSize: 16,
     color: colors.dark,
   },
   selectedOptionBorder: {
-    borderColor: '#21D0B2',
+    borderColor: colors.secondary,
   },
   selectedOptionText: {
     color: colors.dark,
@@ -247,7 +313,7 @@ const styles = StyleSheet.create({
   commentContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 25,
   },
   commentIcon: {
     marginRight: 2,
@@ -260,9 +326,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  checkMarkContainer: {
-    marginRight: 4,
-  },
   totalVoteCircle: {
     width: 17,
     height: 17,
@@ -272,20 +335,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.2,
     borderColor: 'gray',
-  },
-  singleVoteCircle: {
-    width: 17,
-    height: 17,
-    borderRadius: 8.5,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: 4,
-    borderColor: '#21D0B2',
-    borderWidth: 1.2,
   },
+  totalVoteCheck: {},
   voteCount: {
     fontSize: 14,
     color: colors.dark,
+  },
+  // The new style for the detailed date
+  detailedTimestamp: {
+    fontSize: 14,
+    color: 'gray',
+    marginTop: 4,
+    marginBottom: 8,
   },
 });

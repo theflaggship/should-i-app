@@ -1,6 +1,7 @@
 // src/navigation/MainTabNavigator.js
 
 import React, { useRef, useState, useContext } from 'react';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -30,6 +31,7 @@ function DummyScreen() {
   return null;
 }
 
+const questionInputRef = useRef(null);
 const Tab = createBottomTabNavigator();
 const { height } = Dimensions.get('window');
 
@@ -125,6 +127,7 @@ const MainTabNavigator = () => {
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.dark,
           tabBarStyle: { backgroundColor: colors.background },
+          tabBarShowLabel: false,
           tabBarIcon: ({ color, size }) => {
             if (route.name === 'Home') {
               return <Home color={color} size={size} />;
@@ -157,92 +160,102 @@ const MainTabNavigator = () => {
       <Modalize
         ref={modalRef}
         // Let’s set multiple snap points: minimized at ~20% and expanded at ~80%
-        snapPoint={height * 0.8}
-        modalHeight={height}
+        snapPoint={height * 0.85}
+        modalHeight={height * 0.93}
         closeOnOverlayTap={false} // Only close on Cancel or Ask
         handleStyle={{ backgroundColor: '#666' }}
         modalStyle={{ backgroundColor: colors.dark }}
-        snapPoints={[height * 0.2, height * 0.8]}
+        snapPoints={[height * 0.1, height * 0.85]}
         onClose={resetForm}
+        onOpened={() => questionInputRef.current?.focus()}
       >
-        {/* HEADER ROW: Cancel (left), Title (center), Ask (right) */}
-        <View style={styles.modalHeader}>
-          <Text style={styles.cancelText} onPress={closeModal}>
-            Cancel
-          </Text>
-          <Text style={styles.modalTitle}>Ask a Question</Text>
-          <Text style={styles.askText} onPress={handleCreatePoll}>
-            Ask
-          </Text>
-        </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={30} // adjust this if necessary
+        >
 
-        {/* Container for the rest of the form */}
-        <View style={styles.formContainer}>
-          {/* Row with user pic + multiline text input */}
-          <View style={styles.questionRow}>
-            <Image
-              source={{ uri: user?.profilePicture }}
-              style={styles.profilePic}
-            />
-            <TextInput
-              style={styles.questionInput}
-              placeholder="What should I ask?"
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={3}
-              value={question}
-              onChangeText={setQuestion}
-            />
-          </View>
-
-          {/* Option inputs (with minus icon if index >= 2) */}
-          {options.map((opt, idx) => (
-            <View style={styles.optionRow} key={`option-${idx}`}>
-              <TextInput
-                style={styles.optionInput}
-                placeholder={`Option ${idx + 1}`}
-                placeholderTextColor="#999"
-                value={opt}
-                onChangeText={(text) => updateOption(text, idx)}
-              />
-              {idx >= 2 && (
-                <TouchableOpacity
-                  style={styles.minusButton}
-                  onPress={() => removeOptionField(idx)}
-                >
-                  <MinusCircle color="#fff" width={24} height={24} />
-                </TouchableOpacity>
-              )}
+          {/* BUTTON ROW: Cancel (left), Ask (right) */}
+          <View style={styles.buttonRow}>
+            <Text style={styles.cancelText} onPress={closeModal}>
+              Cancel
+            </Text>
+            <View style={styles.askButton}>
+              <Text style={styles.askText} onPress={handleCreatePoll}>
+                Ask
+              </Text>
             </View>
-          ))}
-
-          {/* +Add another option (only if < 4) */}
-          {options.length < 4 && (
-            <TouchableOpacity style={styles.addOptionButton} onPress={addOptionField}>
-              <Text style={styles.addOptionText}>+ Add another option</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Toggles */}
-          <View style={styles.switchRow}>
-            <Text style={styles.whiteText}>Private Poll?</Text>
-            <Switch
-              value={isPrivate}
-              onValueChange={setIsPrivate}
-              trackColor={{ false: '#666', true: '#999' }}
-              thumbColor="#fff"
-            />
           </View>
-          <View style={styles.switchRow}>
-            <Text style={styles.whiteText}>Allow Comments?</Text>
-            <Switch
-              value={allowComments}
-              onValueChange={setAllowComments}
-              trackColor={{ false: '#666', true: '#999' }}
-              thumbColor="#fff"
-            />
+
+          {/* Container for the rest of the form */}
+          <View style={styles.formContainer}>
+            {/* Row with user pic + multiline text input */}
+            <View style={styles.questionRow}>
+              <Image
+                source={{ uri: user?.profilePicture }}
+                style={styles.profilePic}
+              />
+              <TextInput
+                ref={questionInputRef}
+                style={styles.questionInput}
+                placeholder="What should I ask?"
+                placeholderTextColor="#8fa0b5"
+                multiline
+                numberOfLines={3}
+                value={question}
+                onChangeText={setQuestion}
+              />
+            </View>
+
+            {/* Option inputs (with minus icon if index >= 2) */}
+            {options.map((opt, idx) => (
+              <View style={styles.optionContainer} key={`option-${idx}`}>
+                <TextInput
+                  style={styles.optionInput}
+                  placeholder={`Option ${idx + 1}`}
+                  placeholderTextColor="#8fa0b5"
+                  value={opt}
+                  onChangeText={(text) => updateOption(text, idx)}
+                />
+                {idx >= 2 && (
+                  <TouchableOpacity
+                    style={styles.minusButton}
+                    onPress={() => removeOptionField(idx)}
+                  >
+                    <MinusCircle color="#8fa0b5" width={18} height={18} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            {/* +Add another option (only if < 4) */}
+            {options.length < 4 && (
+              <TouchableOpacity style={styles.addOptionButton} onPress={addOptionField}>
+                <Text style={styles.addOptionText}>+ Add another option</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Toggles */}
+            <View style={styles.switchRow}>
+              <Text style={styles.whiteText}>Private Poll?</Text>
+              <Switch
+                value={isPrivate}
+                onValueChange={setIsPrivate}
+                trackColor={{ false: '#666', true: '#21D0B2' }}
+                thumbColor="#dbe4ed"
+              />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.whiteText}>Allow Comments?</Text>
+              <Switch
+                value={allowComments}
+                onValueChange={setAllowComments}
+                trackColor={{ false: '#666', true: '#21D0B2' }}
+                thumbColor="#dbe4ed"
+              />
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modalize>
     </>
   );
@@ -252,34 +265,34 @@ export default MainTabNavigator;
 
 // STYLES
 const styles = StyleSheet.create({
-  modalHeader: {
-    // This row has Cancel (left), Title (center), Ask (right)
+  buttonRow: {
+    // This row has Cancel (left), Ask (right)
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 16,
+    marginTop: 16,
     paddingBottom: 8,
     paddingHorizontal: 16,
-    // So the text doesn't collide
-    position: 'relative',
   },
   cancelText: {
-    color: '#fff',
+    color: colors.light,
     fontSize: 16,
     position: 'absolute',
     left: 16,
   },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  askText: {
-    color: '#21D0B2',
-    fontSize: 16,
-    fontWeight: '600',
+  askButton: {
+    backgroundColor: '#21D0B2',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 15,
     position: 'absolute',
     right: 16,
+  },
+  askText: {
+    color: colors.dark,
+    fontSize: 16,
+    fontWeight: '600',
   },
   formContainer: {
     paddingHorizontal: 16,
@@ -289,7 +302,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 16,
-    marginTop: 8,
+    marginTop: 16,
   },
   profilePic: {
     width: 40,
@@ -299,13 +312,17 @@ const styles = StyleSheet.create({
   },
   questionInput: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#555',
     borderRadius: 6,
     padding: 8,
     color: '#fff',
     textAlignVertical: 'top',
     minHeight: 60,
+    fontSize: 18,
+  },
+  optionContainer: {
+    position: 'relative',
+    marginBottom: 10,
+    width: '100%',
   },
   optionRow: {
     flexDirection: 'row',
@@ -315,14 +332,17 @@ const styles = StyleSheet.create({
   optionInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#555',
+    borderColor: '#2a3d52',
+    backgroundColor: '#2a3d52',
     borderRadius: 6,
     padding: 8,
+    paddingRight: 40, // Ensure there's room for the minus button
     color: '#fff',
-    marginRight: 8,
   },
   minusButton: {
-    padding: 4,
+    position: 'absolute',
+    top: 8,    // Adjust this value if needed
+    right: 4,  // Adjust this value if needed
   },
   addOptionButton: {
     alignSelf: 'flex-start',

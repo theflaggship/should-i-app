@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 100,
     backgroundColor: colors.dark || '#333',
     justifyContent: 'center',
     alignItems: 'center',
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   firstPollCardContainer: {
-    marginTop: 96,
+    marginTop: 118,
     marginHorizontal: 16,
     marginBottom: 16,
   },

@@ -7,7 +7,7 @@ export const usePollsStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  // 1) Fetch all polls
+  // Fetch all polls
   fetchAllPolls: async (token) => {
     set({ loading: true, error: null });
     try {
@@ -26,25 +26,19 @@ export const usePollsStore = create((set, get) => ({
     }
   },
 
-  // 2) Update poll state (vote updates) - handle userVote + options
+  // Update poll state (for vote updates)
   updatePollState: (pollId, userVote, updatedOptions) => {
     set((state) => {
-      // If pollId or updatedOptions is missing, do nothing
       if (!pollId || !updatedOptions) {
         return { polls: state.polls };
       }
 
       const newPolls = state.polls.map((p) => {
-        if (p.id !== pollId) {
-          return p; // no update
-        }
+        if (p.id !== pollId) return p;
 
-        // Merge each updated option
         const mergedOptions = p.options.map((oldOpt) => {
           const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
-          if (!newOpt) {
-            return oldOpt;
-          }
+          if (!newOpt) return oldOpt;
           return {
             ...oldOpt,
             text: newOpt.text ?? oldOpt.text,
@@ -55,8 +49,7 @@ export const usePollsStore = create((set, get) => ({
         return {
           ...p,
           options: mergedOptions,
-          commentCount: p.commentCount, // keep existing
-          userVote: userVote ?? null,   // store the userVote
+          userVote: userVote ?? null,
         };
       });
 
@@ -64,60 +57,61 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
-  // 3) Update comment state
+  // Update comment state (for both optimistic + real comments)
   updateCommentState: (pollId, newComment) => {
     set((state) => {
       if (!pollId || !newComment) {
         return { polls: state.polls };
       }
-  
+
       const newPolls = state.polls.map((p) => {
-        if (p.id !== pollId) {
-          return p;
-        }
+        if (p.id !== pollId) return p;
+
         const oldComments = Array.isArray(p.comments) ? p.comments : [];
-  
-        // Find if there's a "temp" comment with the same text & user
-        // so we can replace it with the real one from the server
         let updatedComments = [...oldComments];
+
+        // Try to find if there's a "temp" comment to replace
+        const newTextTrimmed = (newComment.text || '').trim();
         const existingIndex = updatedComments.findIndex((c) => {
-          // If c.id is numeric, "typeof c.id" is "number", so skip
-          const isTemp = (typeof c.id === 'string') && c.id.startsWith('temp-');
-          const sameText = c.text === newComment.text;
+          const cTextTrimmed = (c.text || '').trim();
+          const isTemp = typeof c.id === 'string' && c.id.startsWith('temp-');
           const sameUser = c.User?.id === newComment.User?.id;
-          return isTemp && sameText && sameUser;
+          const sameText = cTextTrimmed === newTextTrimmed;
+          return isTemp && sameUser && sameText;
         });
-  
+
         if (existingIndex > -1) {
-          // Overwrite the temp comment with the real comment
+          // Replace the temp comment with the new one
           updatedComments[existingIndex] = newComment;
         } else {
-          // Normal case: no matching temp, so prepend the new comment
-          updatedComments = [newComment, ...updatedComments];
+          // Append the new comment to the end
+          updatedComments.push(newComment);
         }
-  
+
+        // Sort ascending: oldest first, newest last
+        updatedComments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
         return {
           ...p,
           comments: updatedComments,
           commentCount: updatedComments.length,
         };
       });
-  
+
       return { polls: newPolls };
     });
   },
-  
 
-  // 4) Initialize store: fetch + connect websockets
+  // Initialize store
   initPolls: (token) => {
     get().fetchAllPolls(token);
 
-    // Vote socket: pass a callback
+    // Vote socket
     connectVoteSocket((pollId, userVote, options) => {
       get().updatePollState(pollId, userVote, options);
     });
 
-    // Comment socket: pass a callback
+    // Comment socket
     connectCommentSocket((pollId, comment) => {
       get().updateCommentState(pollId, comment);
     });

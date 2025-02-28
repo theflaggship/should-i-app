@@ -58,10 +58,13 @@ const PollDetailsScreen = ({ route }) => {
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
 
+    const trimmedText = commentText.trim();
+
     // 1) Create a local "temp" comment
     const tempComment = {
+      // Temporary ID
       id: 'temp-' + Date.now(),
-      text: commentText,
+      text: trimmedText,
       createdAt: new Date().toISOString(),
       User: {
         id: user.id,
@@ -73,8 +76,9 @@ const PollDetailsScreen = ({ route }) => {
     // 2) Immediately update the store
     usePollsStore.getState().updateCommentState(poll.id, tempComment);
 
-    // 3) Send the actual comment to the server
-    sendCommentWS(user.id, poll.id, commentText);
+    // 3) Send the actual comment to the server (WebSocket)
+    //    Pass the trimmed text so it matches the local temp comment.
+    sendCommentWS(user.id, poll.id, trimmedText);
 
     // 4) Clear the input
     setCommentText('');

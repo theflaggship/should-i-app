@@ -102,6 +102,13 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
+  // Add a new poll to the store
+  addPollToStore: (newPoll) => {
+    set((state) => ({
+      polls: [newPoll, ...state.polls], // or push to the front or back
+    }));
+  },
+
   // Initialize store
   initPolls: (token) => {
     get().fetchAllPolls(token);

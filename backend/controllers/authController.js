@@ -30,7 +30,7 @@ exports.signup = async (req, res) => {
       username,
       email,
       password: hashedPassword,
-      // Optionally set profilePicture or other fields
+      profilePicture,
     });
 
     res.status(201).json({
@@ -39,6 +39,7 @@ exports.signup = async (req, res) => {
         id: newUser.id,
         username: newUser.username,
         email: newUser.email,
+        profilePicture: newUser.profilePicture,
         // Exclude the hashed password in the response
       },
     });
@@ -83,7 +84,7 @@ exports.login = async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
-        // any other user fields you want to include
+        profilePicture: user.profilePicture,
       },
     });
   } catch (error) {

@@ -4,7 +4,7 @@ const { sequelize } = require('../models');
 // POST /api/polls - Create a new poll
 exports.createPoll = async (req, res, next) => {
   try {
-    const pollData = req.body;
+    const pollData = req.body
     const newPoll = await Poll.create(pollData);
     
     // If poll options are provided, create them
@@ -17,7 +17,19 @@ exports.createPoll = async (req, res, next) => {
       }));
       await PollOption.bulkCreate(pollOptions);
     }
-    res.status(201).json({ message: 'Poll created successfully', poll: newPoll });
+
+    const pollWithUserAndOptions = await Poll.findOne({
+      where: { id: newPoll.id },
+      include: [
+        { model: User, attributes: ['id', 'username'] },
+        {
+          model: PollOption,
+          as: 'options',
+        },
+      ],
+    });
+
+    res.status(201).json({ message: 'Poll created successfully', poll: pollWithUserAndOptions });
   } catch (error) {
     next(error);
   }

@@ -13,6 +13,7 @@ exports.createPollValidation = [
   check('expirationDate')
     .optional().isISO8601().withMessage('Expiration date must be a valid ISO8601 date'),
   check('isImagePoll')
+    .optional()  // if you want to treat it as false by default
     .isBoolean().withMessage('isImagePoll must be a boolean'),
   // If options are provided, they should be an array and each option must have text.
   check('options')

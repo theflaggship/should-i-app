@@ -23,9 +23,17 @@ export const getPollById = async (pollId) => {
   return response.data;
 };
 
-export const createPoll = async (pollData) => {
-  const response = await api.post('/polls', pollData);
-  return response.data;
+export const createPoll = async (token, pollData) => {
+  try {
+    const response = await api.post('/polls', pollData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 // -----------------------

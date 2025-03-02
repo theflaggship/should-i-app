@@ -91,7 +91,12 @@ const MainTabNavigator = () => {
   // Submit the new poll
   const handleCreatePoll = async () => {
     const trimmedQuestion = question.trim();
-    const validOptions = options.filter((opt) => opt.trim() !== '');
+    const validOptions = options
+      .filter((opt) => opt.trim() !== '')
+      .map((opt) => ({
+        optionText: opt,
+        // optionImage: 'someURL' // only if you have images
+      }));
 
     if (!trimmedQuestion) {
       alert('Please enter a question.');
@@ -104,15 +109,27 @@ const MainTabNavigator = () => {
 
     try {
       const payload = {
+        userId: user.id,             // If you want the client to specify user
         question: trimmedQuestion,
         options: validOptions,
         isPrivate,
         allowComments,
+        isImagePoll: false, 
       };
       // Call your backend
-      const newPoll = await createPoll(token, payload);
+      const response = await createPoll(token, payload);
+
+      const pollWithTransformedOptions = {
+        ...response.poll,
+        options: response.poll.options?.map(opt => ({
+          ...opt,
+          text: opt.optionText,         // unify to "text"
+        })),
+        // Also unify "User" if needed, etc.
+      };
+
       // Put new poll in store
-      addPollToStore(newPoll);
+      addPollToStore(pollWithTransformedOptions);
       // Close modal
       closeModal();
     } catch (err) {
@@ -238,19 +255,19 @@ const MainTabNavigator = () => {
 
             {/* Toggles */}
             <View style={styles.switchRow}>
-              <Text style={styles.whiteText}>Private Poll?</Text>
+              <Text style={styles.lightText}>Allow Comments?</Text>
               <Switch
-                value={isPrivate}
-                onValueChange={setIsPrivate}
+                value={allowComments}
+                onValueChange={setAllowComments}
                 trackColor={{ false: '#666', true: '#21D0B2' }}
                 thumbColor="#dbe4ed"
               />
             </View>
             <View style={styles.switchRow}>
-              <Text style={styles.whiteText}>Allow Comments?</Text>
+              <Text style={styles.lightText}>Private Poll?</Text>
               <Switch
-                value={allowComments}
-                onValueChange={setAllowComments}
+                value={isPrivate}
+                onValueChange={setIsPrivate}
                 trackColor={{ false: '#666', true: '#21D0B2' }}
                 thumbColor="#dbe4ed"
               />
@@ -309,7 +326,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
+    marginRight: 8,
+    borderWidth: .5,
+    borderColor: 'gray',
   },
   questionInput: {
     flex: 1,
@@ -359,8 +378,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 6,
   },
-  whiteText: {
-    color: '#fff',
+  lightText: {
+    color: '#dbe4ed',
     fontSize: 16,
   },
 });

@@ -1,5 +1,5 @@
 // HomeScreen.js
-import React, { useEffect, useContext } from 'react';
+import React, { useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ const HomeScreen = () => {
   const error = usePollsStore((state) => state.error);
   
   const insets = useSafeAreaInsets();
-  const scrollY = React.useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // Animate the navbar
   const navbarTranslate = scrollY.interpolate({

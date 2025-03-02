@@ -31,11 +31,12 @@ function DummyScreen() {
   return null;
 }
 
-const questionInputRef = useRef(null);
 const Tab = createBottomTabNavigator();
 const { height } = Dimensions.get('window');
 
 const MainTabNavigator = () => {
+  const questionInputRef = useRef(null);
+
   // References for modal
   const modalRef = useRef(null);
 
@@ -283,9 +284,9 @@ const styles = StyleSheet.create({
   },
   askButton: {
     backgroundColor: '#21D0B2',
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
     paddingVertical: 5,
-    borderRadius: 15,
+    borderRadius: 20,
     position: 'absolute',
     right: 16,
   },

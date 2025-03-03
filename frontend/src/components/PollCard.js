@@ -102,7 +102,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
             source={{ uri: poll?.user?.profilePicture || DEFAULT_PROFILE_IMG }}
             style={styles.profileImage}
           />
-          <Text style={styles.username}>{poll?.User?.username ?? 'Unknown'}</Text>
+          <Text style={styles.username}>{poll?.user?.username ?? 'Unknown'}</Text>
         </TouchableOpacity>
 
         {/* The rest of the row (including timestamp) => poll details */}

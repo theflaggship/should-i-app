@@ -104,6 +104,11 @@ export const usePollsStore = create((set, get) => ({
 
   // Add a new poll to the store
   addPollToStore: (newPoll) => {
+    // If newPoll has a capital "User" property, rename it to "user"
+    if (newPoll.User && !newPoll.user) {
+      newPoll.user = newPoll.User;
+      delete newPoll.User;
+    }
     set((state) => ({
       polls: [newPoll, ...state.polls], // or push to the front or back
     }));

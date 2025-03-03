@@ -1,6 +1,12 @@
 // src/screens/Auth/LoginScreen.js
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import { login as loginApi } from '../../services/authService';
 import colors from '../../styles/colors';
@@ -22,39 +28,96 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Should I? - Login</Text>
+      <Text style={styles.header}>Hello, welcome back</Text>
+
       {error && <Text style={styles.error}>{error}</Text>}
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <Button title="Login" onPress={handleLogin} color={colors.primary} />
-      <Button title="Go to Signup" onPress={() => navigation.navigate('Signup')} />
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Username"
+          placeholderTextColor={colors.onDarkPlaceHolder}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor={colors.onDarkPlaceHolder}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+      </View>
+
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+        <Text style={styles.loginButtonText}>Log In</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+        <Text style={styles.switchText}>
+          Don’t have an account?{' '}
+          <Text style={styles.switchLink}>Sign Up</Text>
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 16 },
-  title: { fontSize: 24, marginBottom: 16, textAlign: 'center' },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.dark,
-    marginBottom: 12,
-    padding: 10,
-    borderRadius: 4,
-  },
-  error: { color: 'red', marginBottom: 12, textAlign: 'center' },
-});
-
 export default LoginScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.appBackground, // Blue background
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+  },
+  header: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.dark,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  error: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  inputContainer: {
+  },
+  input: {
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    marginBottom: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    paddingLeft: 20,
+    color: colors.dark,
+  },
+  loginButton: {
+    backgroundColor: colors.secondary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  loginButtonText: {
+    textAlign: 'center',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  switchText: {
+    textAlign: 'center',
+    color: colors.dark,
+    fontSize: 14,
+  },
+  switchLink: {
+    color: colors.primary,
+    fontWeight: '500',
+    textDecorationLine: 'none',
+  },
+});

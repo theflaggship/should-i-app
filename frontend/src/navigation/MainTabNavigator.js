@@ -354,15 +354,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a3d52',
     backgroundColor: '#2a3d52',
-    borderRadius: 6,
-    padding: 8,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingLeft: 24,
     paddingRight: 40, // Ensure there's room for the minus button
     color: '#fff',
   },
   minusButton: {
     position: 'absolute',
-    top: 8,    // Adjust this value if needed
-    right: 4,  // Adjust this value if needed
+    top: 13,    // Adjust this value if needed
+    right: 10,  // Adjust this value if needed
   },
   addOptionButton: {
     alignSelf: 'flex-start',

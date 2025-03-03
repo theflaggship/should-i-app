@@ -18,7 +18,7 @@ const SignupScreen = ({ navigation }) => {
 
   const handleSignup = async () => {
     try {
-      await signupApi(username, email, password);
+      await signupApi(email, username, password);
       navigation.navigate('Login');
     } catch (err) {
       setError('Signup failed. Please try again.');
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   inputContainer: {
   },
   input: {
-    borderRadius: 10,
+    borderRadius: 25,
     backgroundColor: '#fff',
     marginBottom: 15,
     paddingVertical: 15,
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   signupButton: {
     backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 20,
     marginBottom: 20,
   },
   signupButtonText: {

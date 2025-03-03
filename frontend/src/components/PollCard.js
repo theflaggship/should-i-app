@@ -152,7 +152,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
                     styles.fillBar,
                     {
                       width: percentage,
-                      backgroundColor: isVoted ? '#b1f3e7' : '#dbe4ed',
+                      backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
                     },
                   ]}
                 />
@@ -273,10 +273,9 @@ const styles = StyleSheet.create({
   },
   optionContainer: {
     position: 'relative',
-    paddingVertical: 10,
     borderWidth: 1,
     borderColor: colors.dark,
-    borderRadius: 4,
+    borderRadius: 20,
     marginBottom: 8,
     overflow: 'hidden',
   },
@@ -285,14 +284,15 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    borderRadius: 4,
+    borderRadius: 20,
   },
   optionContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 1,
-    marginLeft: 12,
+    zIndex: 1,    
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   optionLeft: {
     flexDirection: 'row',
@@ -300,6 +300,7 @@ const styles = StyleSheet.create({
   },
   checkMarkContainer: {
     marginRight: 0,
+    marginLeft: -4,
   },
   singleVoteCircle: {
     width: 17,

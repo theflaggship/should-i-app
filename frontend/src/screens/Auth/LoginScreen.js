@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   inputContainer: {
   },
   input: {
-    borderRadius: 10,
+    borderRadius: 25,
     backgroundColor: '#fff',
     marginBottom: 15,
     paddingVertical: 15,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: colors.secondary,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 20,
     marginBottom: 20,
   },
   loginButtonText: {

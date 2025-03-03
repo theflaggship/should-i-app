@@ -9,10 +9,10 @@ const jwt = require('jsonwebtoken');
  */
 exports.signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { email, username, password } = req.body;
 
     // Basic validation
-    if (!username || !email || !password) {
+    if (!email || !username || !password) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 

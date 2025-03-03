@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthContext } from '../context/AuthContext';
-import { usePollsStore } from '../store/usePollsStore';
-import { sendCommentWS } from '../services/pollService';
-import PollCard from '../components/PollCard';
-import colors from '../styles/colors';
+import { AuthContext } from '../../context/AuthContext';
+import { usePollsStore } from '../../store/usePollsStore';
+import { sendCommentWS } from '../../services/pollService';
+import PollCard from '../../components/PollCard';
+import colors from '../../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
@@ -179,13 +179,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  // Static header
   header: {
     height: 100,
     backgroundColor: colors.dark || '#333',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    // optional shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -194,8 +192,7 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     left: 16,
-    // Move it up or down within the header
-    bottom: 16, // was 12, now 16 for a bit more spacing
+    bottom: 16,
   },
   backButtonText: {
     color: '#fff',
@@ -207,12 +204,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Extra margin to push poll card below header
   pollCardContainer: {
     marginTop: 16,
     marginHorizontal: 16,
   },
-
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -267,22 +262,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    marginBottom: -18,
   },
   commentInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderRadius: 20,
+    paddingRight: 8,
+    paddingLeft: 20,
+    paddingVertical: 10,
     marginRight: 8,
   },
   commentButton: {
     backgroundColor: '#21D0B2',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
   },
   commentButtonText: {
     color: '#fff',

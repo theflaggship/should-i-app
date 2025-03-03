@@ -3,7 +3,7 @@
 import React, { useRef, useState, useContext } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import HomeScreen from '../screens/HomeScreen';
+import HomeStack from '../screens/HomeStack/HomeStack';
 import ProfileScreen from '../screens/ProfileScreen';
 import { Home, PlusCircle, User, MinusCircle } from 'react-native-feather';
 import colors from '../styles/colors';
@@ -157,7 +157,7 @@ const MainTabNavigator = () => {
           },
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Home" component={HomeStack} />
 
         {/* The "Create" tab that opens a modal instead of navigating */}
         <Tab.Screen
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 16,
+    paddingTop: 12,
     marginTop: 16,
     paddingBottom: 8,
     paddingHorizontal: 16,
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   askText: {
     color: colors.dark,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   formContainer: {
     paddingHorizontal: 16,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   minusButton: {
     position: 'absolute',
     top: 13,    // Adjust this value if needed
-    right: 10,  // Adjust this value if needed
+    right: 13,  // Adjust this value if needed
   },
   addOptionButton: {
     alignSelf: 'flex-start',

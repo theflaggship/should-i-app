@@ -8,12 +8,11 @@ import {
   StyleSheet,
   Animated,
 } from 'react-native';
-import { AuthContext } from '../context/AuthContext';
-import { usePollsStore } from '../store/usePollsStore';
-import { sendVoteWS } from '../services/pollService';
+import { AuthContext } from '../../context/AuthContext';
+import { usePollsStore } from '../../store/usePollsStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import PollCard from '../components/PollCard';
-import colors from '../styles/colors';
+import PollCard from '../../components/PollCard';
+import colors from '../../styles/colors';
 
 // Wrap FlatList in Animated for smooth scrolling
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);

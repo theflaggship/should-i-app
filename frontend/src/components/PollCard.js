@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   optionContainer: {
     position: 'relative',
     borderWidth: 1,
-    borderColor: colors.dark,
+    borderColor: '#b8c3cf',
     borderRadius: 20,
     marginBottom: 8,
     overflow: 'hidden',
@@ -292,7 +292,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,    
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingRight: 12,
+    paddingLeft: 22,
   },
   optionLeft: {
     flexDirection: 'row',

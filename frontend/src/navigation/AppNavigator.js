@@ -5,7 +5,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 
 import AuthNavigator from './AuthNavigator';
 import MainTabNavigator from './MainTabNavigator';
-import PollDetailsScreen from '../screens/PollDetailsScreen';
 import { AuthContext } from '../context/AuthContext';
 
 const Stack = createStackNavigator();
@@ -22,13 +21,6 @@ const AppNavigator = () => {
             name="MainTabs"
             component={MainTabNavigator}
             options={{ headerShown: false }} // Hide header so tabs are full screen
-          />
-
-          {/* Register PollDetails as a separate screen in the stack */}
-          <Stack.Screen
-            name="PollDetails"
-            component={PollDetailsScreen}
-            options={{ headerShown: false }} // Adjust as desired
           />
         </Stack.Navigator>
       ) : (

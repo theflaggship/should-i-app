@@ -50,6 +50,9 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
+  // Unify poll.user vs. poll.User
+  const finalUser = poll.user || poll.User;
+
   const userVote = poll?.userVote;
   const pollOptions = poll?.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
@@ -70,9 +73,9 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
   };
 
   const handleNavigateToProfile = () => {
-    if (!poll?.user?.id) return;
+    if (!finalUser?.id) return;
     // Future user profile screen:
-    navigation.navigate('UserProfile', { userId: poll.user.id });
+    navigation.navigate('UserProfile', { userId: finalUser.id });
   };
 
   if (!poll) {
@@ -95,17 +98,15 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
           style={styles.userRowLeft}
           // onPress={handleNavigateToProfile}
           activeOpacity={0.8}
-          // This ensures taps on userRowLeft don't bubble to the parent
           pointerEvents="box-only"
         >
           <Image
-            source={{ uri: poll?.user?.profilePicture || DEFAULT_PROFILE_IMG }}
+            source={{ uri: finalUser?.profilePicture || DEFAULT_PROFILE_IMG }}
             style={styles.profileImage}
           />
-          <Text style={styles.username}>{poll?.user?.username ?? 'Unknown'}</Text>
+          <Text style={styles.username}>{finalUser?.username ?? 'Unknown'}</Text>
         </TouchableOpacity>
 
-        {/* The rest of the row (including timestamp) => poll details */}
         {!showDetailedTimestamp && (
           <TouchableOpacity
             style={styles.userRowRight}
@@ -119,7 +120,6 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
         )}
       </TouchableOpacity>
 
-      {/* Main body: question + bottom row => poll details (unless disabled) */}
       <TouchableOpacity
         activeOpacity={0.8}
         disabled={disableMainPress}
@@ -128,26 +128,32 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
       >
         <Text style={styles.question}>{poll?.question ?? 'No question'}</Text>
 
-        {/* Voting options => cast vote */}
         <View style={styles.optionsContainer}>
           {pollOptions.map((option) => {
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
-            const percentage = totalVotes === 0
-              ? '0%'
-              : `${Math.round((votes / totalVotes) * 100)}%`;
+            const percentage =
+              totalVotes === 0
+                ? '0%'
+                : `${Math.round((votes / totalVotes) * 100)}%`;
 
             return (
               <TouchableOpacity
                 key={option.id}
-                style={[styles.optionContainer, isVoted && styles.selectedOptionBorder]}
+                style={[
+                  styles.optionContainer,
+                  isVoted && styles.selectedOptionBorder,
+                ]}
                 onPress={() => handleOptionPress(option.id)}
                 activeOpacity={0.8}
               >
                 <View
                   style={[
                     styles.fillBar,
-                    { width: percentage, backgroundColor: isVoted ? '#b1f3e7' : '#dbe4ed' },
+                    {
+                      width: percentage,
+                      backgroundColor: isVoted ? '#b1f3e7' : '#dbe4ed',
+                    },
                   ]}
                 />
                 <View style={styles.optionContent}>
@@ -159,11 +165,21 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
                         </View>
                       </View>
                     )}
-                    <Text style={[styles.optionText, isVoted && styles.selectedOptionText]}>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isVoted && styles.selectedOptionText,
+                      ]}
+                    >
                       {option.text}
                     </Text>
                   </View>
-                  <Text style={[styles.percentageText, isVoted && styles.selectedOptionText]}>
+                  <Text
+                    style={[
+                      styles.percentageText,
+                      isVoted && styles.selectedOptionText,
+                    ]}
+                  >
                     {percentage}
                   </Text>
                 </View>
@@ -171,17 +187,21 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
             );
           })}
         </View>
-        {/* If showDetailedTimestamp is true, we show the new date below the options */}
+
         {showDetailedTimestamp && (
           <Text style={styles.detailedTimestamp}>
             {formatDetailedDate(poll?.createdAt)}
           </Text>
         )}
-        {/* Bottom row: comment + total votes => poll details if disableMainPress=false */}
+
         <View style={styles.bottomRow}>
           {poll.allowComments && (
             <View style={styles.commentContainer}>
-              <MessageCircle width={18} color="gray" style={styles.commentIcon} />
+              <MessageCircle
+                width={18}
+                color="gray"
+                style={styles.commentIcon}
+              />
               <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
             </View>
           )}
@@ -202,7 +222,6 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
 export default PollCard;
 
 // -------------- STYLES --------------
-
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',
@@ -228,7 +247,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 8,
-    borderWidth: .5,
+    borderWidth: 0.5,
     borderColor: 'gray',
   },
   username: {
@@ -236,11 +255,13 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontWeight: '600',
   },
-  // Original top-right "time elapsed"
   timestamp: {
     fontSize: 12,
     color: 'gray',
     marginLeft: 'auto',
+  },
+  mainBody: {
+    // no style changes
   },
   question: {
     fontSize: 18,
@@ -344,7 +365,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.dark,
   },
-  // The new style for the detailed date
   detailedTimestamp: {
     fontSize: 14,
     color: 'gray',

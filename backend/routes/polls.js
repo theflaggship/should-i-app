@@ -11,7 +11,7 @@ const validate = require('../validators/validate');
 router.post('/', verifyToken, createPollValidation, validate, pollController.createPoll);
 
 // Retrieve all polls
-router.get('/', pollController.getAllPolls);
+router.get('/', verifyToken, pollController.getAllPolls);
 
 // Retrieve a single poll by its ID
 router.get('/:id', pollController.getPollById);

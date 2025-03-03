@@ -6,7 +6,7 @@ exports.createPoll = async (req, res, next) => {
   try {
     const pollData = req.body
     const newPoll = await Poll.create(pollData);
-    
+
     // If poll options are provided, create them
     if (req.body.options && Array.isArray(req.body.options)) {
       const pollOptions = req.body.options.map((option, index) => ({
@@ -38,10 +38,10 @@ exports.createPoll = async (req, res, next) => {
 // GET /api/polls - Retrieve all polls with comment count
 exports.getAllPolls = async (req, res, next) => {
   try {
-    // 1) Identify the requesting user (JWT or query param)
-    const userId = req.user?.id; // or req.query.userId
+    // 1) Identify user
+    const userId = req.user?.id;
 
-    // 2) Fetch polls with associated data
+    // 2) Fetch all polls (no changes here)
     const polls = await Poll.findAll({
       include: [
         {
@@ -51,67 +51,78 @@ exports.getAllPolls = async (req, res, next) => {
         {
           model: PollOption,
           as: 'options',
-          attributes: ['id', 'optionText', 'votes', 'sortOrder']
+          attributes: ['id', 'optionText', 'votes', 'sortOrder'],
+          separate: true,           // If you have multiple includes, 'separate' helps keep the sub-order
+          order: [['sortOrder', 'ASC']],
         },
         {
           model: Comment,
           attributes: ['id', 'commentText', 'createdAt'],
-          include: [{ model: User, attributes: ['id', 'username', 'profilePicture'] }]
+          include: [
+            { model: User, attributes: ['id', 'username', 'profilePicture'] }
+          ]
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
-    // 3) For each poll, find the user's vote (if userId is provided)
-    const data = await Promise.all(
-      polls.map(async (poll) => {
-        let userVote = null;
-        if (userId) {
-          const existingVote = await Vote.findOne({
-            where: { userId, pollId: poll.id },
-          });
-          if (existingVote) {
-            userVote = existingVote.pollOptionId; // The ID of the option the user voted for
+    // 3) If user is logged in, fetch all votes for these poll IDs in one go
+    let userVotesByPollId = {};
+    if (userId) {
+      const pollIds = polls.map((poll) => poll.id);
+      const userVotes = await Vote.findAll({
+        where: {
+          userId,
+          pollId: pollIds,
+        },
+        // attributes: ['pollId', 'pollOptionId'] if you only need those
+      });
+
+      // Build a quick lookup object
+      userVotes.forEach((vote) => {
+        userVotesByPollId[vote.pollId] = vote.pollOptionId;
+      });
+    }
+
+    // 4) Transform polls + attach userVote
+    const data = polls.map((poll) => {
+      const userVote = userVotesByPollId[poll.id] || null;
+
+      return {
+        id: poll.id,
+        question: poll.question,
+        createdAt: poll.createdAt,
+        allowComments: poll.allowComments,
+        commentCount: poll.Comments?.length || 0,
+        userVote,
+        user: poll.User
+          ? {
+            id: poll.User.id,
+            username: poll.User.username,
+            profilePicture: poll.User.profilePicture,
           }
-        }
-
-        // 4) Transform poll into final JSON, attaching userVote
-        return {
-          id: poll.id,
-          question: poll.question,
-          createdAt: poll.createdAt,
-          allowComments: poll.allowComments,
-          commentCount: poll.Comments?.length || 0,
-          userVote,
-          user: poll.User
+          : null,
+        options: poll.options.map((opt) => ({
+          id: opt.id,
+          text: opt.optionText,
+          votes: opt.votes,
+        })),
+        comments: poll.Comments.map((c) => ({
+          id: c.id,
+          text: c.commentText,
+          createdAt: c.createdAt,
+          User: c.User
             ? {
-                id: poll.User.id,
-                username: poll.User.username,
-                profilePicture: poll.User.profilePicture,
-              }
+              id: c.User.id,
+              username: c.User.username,
+              profilePicture: c.User.profilePicture,
+            }
             : null,
-          options: poll.options.map((opt) => ({
-            id: opt.id,
-            text: opt.optionText,
-            votes: opt.votes,
-          })),
-          comments: poll.Comments.map((c) => ({
-            id: c.id,
-            text: c.commentText,
-            createdAt: c.createdAt,
-            User: c.User
-              ? {
-                  id: c.User.id,          
-                  username: c.User.username,
-                  profilePicture: c.User.profilePicture
-                }
-              : null
-          }))
-        };
-      })
-    );
+        })),
+      };
+    });
 
-    // 5) Send the array of polls (with userVote) as JSON
+    // 5) Send the array of polls
     return res.status(200).json(data);
   } catch (error) {
     next(error);
@@ -135,6 +146,7 @@ exports.getPollById = async (req, res, next) => {
           model: PollOption,
           as: 'options',
           attributes: ['id', 'optionText', 'votes'],
+          separate: true,           // If you have multiple includes, 'separate' helps keep the sub-order
           order: [['sortOrder', 'ASC']],
         },
         {
@@ -173,9 +185,9 @@ exports.getPollById = async (req, res, next) => {
       commentCount: poll.Comments?.length || 0,
       user: poll.User
         ? {
-            username: poll.User.username,
-            profilePicture: poll.User.profilePicture,
-          }
+          username: poll.User.username,
+          profilePicture: poll.User.profilePicture,
+        }
         : null,
       userVote,
       options: poll.options.map((opt) => ({
@@ -189,10 +201,10 @@ exports.getPollById = async (req, res, next) => {
         createdAt: c.createdAt,
         User: c.User
           ? {
-              id: c.User.id,
-              username: c.User.username,
-              profilePicture: c.User.profilePicture
-            }
+            id: c.User.id,
+            username: c.User.username,
+            profilePicture: c.User.profilePicture
+          }
           : null
       }))
     });

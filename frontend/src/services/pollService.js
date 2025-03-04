@@ -36,6 +36,20 @@ export const createPoll = async (token, pollData) => {
   }
 };
 
+export const deletePoll = async (token, pollId) => {
+  try {
+    const response = await api.delete(`/polls/${pollId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+
 // -----------------------
 // Comment REST API Calls
 // -----------------------

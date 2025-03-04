@@ -133,10 +133,25 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
           {pollOptions.map((option) => {
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
-            const percentage =
+            const rawPercent =
               totalVotes === 0
-                ? '0%'
-                : `${Math.round((votes / totalVotes) * 100)}%`;
+                ? 0
+                : Math.round((votes / totalVotes) * 100);
+            const percentage = `${rawPercent}%`;
+            const fillBarDynamicRadius =
+              rawPercent === 100
+                ? {
+                  borderTopLeftRadius: 20,
+                  borderBottomLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  borderBottomRightRadius: 20,
+                }
+                : {
+                  borderTopLeftRadius: 20,
+                  borderBottomLeftRadius: 20,
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                };
 
             return (
               <TouchableOpacity
@@ -151,6 +166,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
                 <View
                   style={[
                     styles.fillBar,
+                    fillBarDynamicRadius,
                     {
                       width: percentage,
                       backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
@@ -302,7 +318,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 1,    
+    zIndex: 1,
     paddingVertical: 10,
     paddingRight: 12,
     paddingLeft: 22,

@@ -81,8 +81,8 @@ const HomeScreen = () => {
     try {
       await deletePoll(token, selectedPoll.id);
       usePollsStore.getState().removePoll(selectedPoll.id);
-      deleteConfirmModalRef.current?.close(); // close confirm
-      menuModalRef.current?.close();          // close main menu
+      deleteConfirmModalRef.current?.close();
+      menuModalRef.current?.close();
     } catch (err) {
       console.error('Failed to delete poll:', err);
     }

@@ -114,6 +114,12 @@ export const usePollsStore = create((set, get) => ({
     }));
   },
 
+  removePoll: (pollId) => {
+    set((state) => ({
+      polls: state.polls.filter((p) => p.id !== pollId),
+    }));
+  },
+
   // Initialize store
   initPolls: (token) => {
     get().fetchAllPolls(token);

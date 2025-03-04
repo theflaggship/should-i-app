@@ -8,5 +8,6 @@ export default {
     dark: '#2F455C',
     light: '#dbe4ed',
     onDarkPlaceHolder: '#8fa0b5',
+    red: '#EB5160',
   };
   

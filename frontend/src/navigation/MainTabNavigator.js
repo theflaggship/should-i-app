@@ -181,7 +181,7 @@ const MainTabNavigator = () => {
         snapPoint={height * 0.85}
         modalHeight={height * 0.93}
         closeOnOverlayTap={false} // Only close on Cancel or Ask
-        handleStyle={{ backgroundColor: '#666' }}
+        handleStyle={{ backgroundColor: '#888' }}
         modalStyle={{ backgroundColor: colors.dark }}
         snapPoints={[height * 0.1, height * 0.85]}
         onClose={resetForm}

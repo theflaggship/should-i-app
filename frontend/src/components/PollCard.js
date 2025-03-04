@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVoteWS } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircle, Check } from 'react-native-feather';
+import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather'; // <-- ADDED MoreHorizontal import
 import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
@@ -46,7 +46,8 @@ const formatDetailedDate = (createdAt) => {
   return formatted;
 };
 
-const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestamp = false }) => {
+// ADDED onOpenMenu in the props (default is undefined if not passed)
+const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestamp = false, onOpenMenu }) => {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
@@ -213,6 +214,17 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
             </View>
             <Text style={styles.voteCount}>{totalVotes}</Text>
           </View>
+
+          {/* ADDED ELLIPSIS: show if poll belongs to logged-in user and onOpenMenu is provided */}
+          {finalUser?.id === user?.id && onOpenMenu && (
+            <TouchableOpacity
+              style={styles.ellipsisButton}
+              onPress={() => onOpenMenu(poll)}
+            >
+              <MoreHorizontal width={20} color="gray" />
+            </TouchableOpacity>
+          )}
+          {/* END ELLIPSIS */}
         </View>
       </TouchableOpacity>
     </View>
@@ -372,5 +384,11 @@ const styles = StyleSheet.create({
     color: 'gray',
     marginTop: 4,
     marginBottom: 8,
+  },
+
+  // ADDED STYLE for ellipsis button
+  ellipsisButton: {
+    marginLeft: 'auto',
+    padding: 6,
   },
 });

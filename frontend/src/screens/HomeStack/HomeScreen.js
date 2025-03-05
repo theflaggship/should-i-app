@@ -1,4 +1,3 @@
-// HomeScreen.js
 import React, { useRef, useContext, useState } from 'react';
 import {
   View,
@@ -9,17 +8,22 @@ import {
   Animated,
   TouchableOpacity,
   Switch,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { Modalize } from 'react-native-modalize';
-import { Settings, Trash2 } from 'react-native-feather'; // Icons for the rows
+import { Settings, Trash2, MinusCircle } from 'react-native-feather'; // ADDED MinusCircle for removing options
 import { AuthContext } from '../../context/AuthContext';
 import { usePollsStore } from '../../store/usePollsStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PollCard from '../../components/PollCard';
 import colors from '../../styles/colors';
-import { deletePoll } from '../../services/pollService'; // if you have a deletePoll function
+import { deletePoll, updatePoll } from '../../services/pollService'; // if you have a deletePoll function
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const { height } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const { user, token } = useContext(AuthContext);
@@ -32,10 +36,12 @@ const HomeScreen = () => {
 
   // For the bottom drawer menu (the ellipsis menu)
   const menuModalRef = useRef(null);
-  // For the Edit Interaction Settings drawer
+  // For the Edit Interaction Settings drawer (toggles only)
   const editModalRef = useRef(null);
   // For the Delete Poll confirmation drawer
   const deleteConfirmModalRef = useRef(null);
+  // For a full "Edit Poll" drawer (question, options, toggles)
+  const fullEditModalRef = useRef(null);
 
   // The poll we tapped on
   const [selectedPoll, setSelectedPoll] = useState(null);
@@ -44,20 +50,10 @@ const HomeScreen = () => {
   const [tempAllowComments, setTempAllowComments] = useState(false);
   const [tempIsPrivate, setTempIsPrivate] = useState(false);
 
-  // --------------------------------------------------------------------------
-  // OLD: We tried nextModal + onClose approach. We'll keep it, but comment it out
-  // so you can see it. We now use setTimeout approach below.
-  // const [nextModal, setNextModal] = useState(null);
-
-  // const onMenuModalClose = () => {
-  //   if (nextModal === 'edit') {
-  //     editModalRef.current?.open();
-  //   } else if (nextModal === 'delete') {
-  //     deleteConfirmModalRef.current?.open();
-  //   }
-  //   setNextModal(null);
-  // };
-  // --------------------------------------------------------------------------
+  // For "Edit Poll" scenario
+  const [tempQuestion, setTempQuestion] = useState('');
+  // We'll store poll options as an array of strings
+  const [tempOptions, setTempOptions] = useState([]);
 
   // Animate the navbar
   const navbarTranslate = scrollY.interpolate({
@@ -72,8 +68,20 @@ const HomeScreen = () => {
     // Preload toggles from poll if needed
     setTempAllowComments(poll.allowComments);
     setTempIsPrivate(poll.isPrivate);
-    // setNextModal(null); // old approach
+
+    // For full edit
+    setTempQuestion(poll.question || '');
+    // Convert each option object => text
+    const optionTexts = (poll.options || []).map((opt) => opt.text || '');
+    setTempOptions(optionTexts);
+
     menuModalRef.current?.open();
+  };
+
+  // Compute total votes
+  const getTotalVotes = (poll) => {
+    if (!poll || !poll.options) return 0;
+    return poll.options.reduce((sum, opt) => sum + (opt.votes || 0), 0);
   };
 
   // Confirm delete poll
@@ -81,38 +89,121 @@ const HomeScreen = () => {
     try {
       await deletePoll(token, selectedPoll.id);
       usePollsStore.getState().removePoll(selectedPoll.id);
-      deleteConfirmModalRef.current?.close();
-      menuModalRef.current?.close();
+      deleteConfirmModalRef.current?.close(); // close confirm
+      menuModalRef.current?.close();          // close main menu
     } catch (err) {
       console.error('Failed to delete poll:', err);
     }
   };
 
-  // Save toggles
-  const handleSaveToggles = () => {
-    // Example: update poll in DB or store with new toggles
-    // e.g. updatePoll(token, selectedPoll.id, { allowComments: tempAllowComments, isPrivate: tempIsPrivate });
-    editModalRef.current?.close();
-    menuModalRef.current?.close();
-  };
-
-  // --------------------------------------------------------------------------
-  // NEW: Instead of setting nextModal + onClose, we do a setTimeout approach.
-  // So the main menu closes fully before opening the second modal.
-  const handleMenuOption = (option) => {
-    // 1) Close main menu
-    menuModalRef.current?.close();
-
-    // 2) Wait a bit, then open the next modal
-    setTimeout(() => {
-      if (option === 'edit') {
-        editModalRef.current?.open();
-      } else if (option === 'delete') {
-        deleteConfirmModalRef.current?.open();
+  // Save toggles only
+  const handleSaveToggles = async () => {
+    try {
+      const payload = { allowComments: tempAllowComments, isPrivate: tempIsPrivate };
+      const result = await updatePoll(token, selectedPoll.id, payload);
+  
+      // Suppose the backend returns { poll: updatedPoll }
+      // or something similar
+      if (result.poll) {
+        usePollsStore.getState().updatePollInStore(selectedPoll.id, {
+          question: result.poll.question,
+          allowComments: result.poll.allowComments,
+          isPrivate: result.poll.isPrivate,
+          options: result.poll.options.map((o) => ({
+            ...o,
+            text: o.optionText,
+          })),
+        });
       }
-    }, 300); // 300ms to allow main menu to finish closing
+  
+      editModalRef.current?.close();
+      menuModalRef.current?.close();
+    } catch (err) {
+      console.error('Failed to update poll toggles:', err);
+      alert('Could not update poll settings. Please try again.');
+    }
   };
-  // --------------------------------------------------------------------------
+
+  // ========== FULL EDIT POLL LOGIC ==========
+  // Add or remove option strings
+  const addOptionField = () => {
+    if (tempOptions.length < 4) {
+      setTempOptions([...tempOptions, '']);
+    }
+  };
+  const removeOptionField = (index) => {
+    const updated = tempOptions.filter((_, i) => i !== index);
+    setTempOptions(updated);
+  };
+  const updateOptionField = (text, index) => {
+    const updated = [...tempOptions];
+    updated[index] = text;
+    setTempOptions(updated);
+  };
+
+  const handleSaveFullEdit = async () => {
+    try {
+      const trimmedQuestion = tempQuestion.trim();
+      const validOptions = tempOptions
+        .map((txt, idx) => ({
+          optionText: txt.trim(),
+          sortOrder: idx,
+        }))
+        .filter((opt) => opt.optionText !== '');
+  
+      const payload = {
+        question: trimmedQuestion,
+        options: validOptions, // shape your backend expects
+        allowComments: tempAllowComments,
+        isPrivate: tempIsPrivate,
+      };
+  
+      const result = await updatePoll(token, selectedPoll.id, payload);
+  
+      if (result.poll && Array.isArray(result.poll.options)) {
+        // Patch store or re-fetch
+        usePollsStore.getState().updatePollInStore(selectedPoll.id, {
+          question: result.poll.question,
+          allowComments: result.poll.allowComments,
+          isPrivate: result.poll.isPrivate,
+          options: result.poll.options.map((o) => ({
+            ...o,
+            text: o.optionText,
+          })),
+        });
+      } else {
+        console.warn('No poll or poll.options returned, or not an array');
+      }
+  
+      fullEditModalRef.current?.close();
+      menuModalRef.current?.close();
+    } catch (err) {
+      console.error('Failed to fully edit poll:', err);
+      alert('Could not update the poll. Please try again.');
+    }
+  };
+
+  // ========== END FULL EDIT POLL LOGIC ==========
+
+  const handleMenuOption = (option) => {
+    menuModalRef.current?.close();
+    setTimeout(() => {
+      if (option === 'delete') {
+        deleteConfirmModalRef.current?.open();
+        return;
+      }
+      if (option === 'edit') {
+        const total = getTotalVotes(selectedPoll);
+        if (total === 0) {
+          // No votes => full edit
+          fullEditModalRef.current?.open();
+        } else {
+          // Votes exist => toggles only
+          editModalRef.current?.open();
+        }
+      }
+    }, 300);
+  };
 
   if (loading) {
     return (
@@ -148,10 +239,7 @@ const HomeScreen = () => {
                 : styles.pollCardContainer
             }
           >
-            <PollCard
-              poll={item}
-              onOpenMenu={handleOpenMenu}
-            />
+            <PollCard poll={item} onOpenMenu={handleOpenMenu} />
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 16 }}
@@ -166,22 +254,31 @@ const HomeScreen = () => {
         ref={menuModalRef}
         withReactModal
         coverScreen
-        adjustToContentHeight
+        snapPoint={height * 0.25}
         modalStyle={{ backgroundColor: colors.dark }}
         handleStyle={{ backgroundColor: '#888' }}
-        // onClose={onMenuModalClose} // <-- old approach (commented out)
       >
         <View style={styles.menuModalContent}>
-          {/* Row 1: Edit Interaction Settings */}
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => handleMenuOption('edit')} // use setTimeout approach
-          >
-            <Text style={styles.menuRowText}>Edit Interaction Settings</Text>
-            <Settings width={20} color="#ccc" />
-          </TouchableOpacity>
+          {getTotalVotes(selectedPoll) === 0 && (
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => handleMenuOption('edit')}
+            >
+              <Text style={styles.menuRowText}>Edit Poll</Text>
+              <Settings width={20} color="#ccc" />
+            </TouchableOpacity>
+          )}
 
-          {/* Row 2: Delete Poll */}
+          {getTotalVotes(selectedPoll) > 0 && (
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => handleMenuOption('edit')}
+            >
+              <Text style={styles.menuRowText}>Edit Interaction Settings</Text>
+              <Settings width={20} color="#ccc" />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => handleMenuOption('delete')}
@@ -192,19 +289,18 @@ const HomeScreen = () => {
         </View>
       </Modalize>
 
-      {/* Edit Interaction Settings drawer */}
+      {/* Edit Interaction Settings drawer (toggles only) */}
       <Modalize
         ref={editModalRef}
         withReactModal
         coverScreen
-        adjustToContentHeight
+        snapPoint={height * 0.42}
         modalStyle={{ backgroundColor: colors.dark }}
         handleStyle={{ backgroundColor: '#888' }}
       >
         <View style={styles.editModalContent}>
           <Text style={styles.editTitle}>Edit Interaction Settings</Text>
 
-          {/* Toggles for comments + private */}
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>Allow Comments?</Text>
             <Switch
@@ -227,7 +323,106 @@ const HomeScreen = () => {
           <TouchableOpacity style={styles.saveButton} onPress={handleSaveToggles}>
             <Text style={styles.saveButtonText}>Save</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => editModalRef.current?.close()}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
+      </Modalize>
+
+      {/* Full Edit Poll drawer (question, dynamic options, toggles) */}
+      <Modalize
+        snapPoint={height * 0.85}
+        modalHeight={height * 0.93}
+        closeOnOverlayTap={false} 
+        ref={fullEditModalRef}
+        withReactModal
+        coverScreen
+        modalStyle={{ backgroundColor: colors.dark }}
+        handleStyle={{ backgroundColor: '#888' }}
+      >
+        {/* KeyboardAvoidingView to handle iOS keyboard */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={30} // adjust if needed
+        >
+          {/* Top row: Cancel + Save Poll */}
+          <View style={styles.editButtonRow}>
+            <Text
+              style={styles.editCancelText}
+              onPress={() => fullEditModalRef.current?.close()}
+            >
+              Cancel
+            </Text>
+            <View style={styles.editSaveButton}>
+              <Text style={styles.editSaveText} onPress={handleSaveFullEdit}>
+                Save Poll
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.fullEditContent}>
+            {/* Edit question */}
+            <TextInput
+              style={styles.editInput}
+              value={tempQuestion}
+              onChangeText={setTempQuestion}
+              placeholder="What should I ask?"
+              placeholderTextColor="#999"
+              multiline
+            />
+
+            {/* Dynamic options array */}
+            {tempOptions.map((opt, idx) => (
+              <View style={styles.optionContainer} key={`editOption-${idx}`}>
+                <TextInput
+                  style={styles.optionInput}
+                  placeholder={`Option ${idx + 1}`}
+                  placeholderTextColor="#999"
+                  value={opt}
+                  onChangeText={(txt) => updateOptionField(txt, idx)}
+                />
+                {idx >= 2 && (
+                  <TouchableOpacity
+                    style={styles.minusButton}
+                    onPress={() => removeOptionField(idx)}
+                  >
+                    <MinusCircle color="#8fa0b5" width={18} height={18} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            {/* +Add another option (only if < 4) */}
+            {tempOptions.length < 4 && (
+              <TouchableOpacity style={styles.addOptionButton} onPress={addOptionField}>
+                <Text style={styles.addOptionText}>+ Add another option</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Toggles */}
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Allow Comments?</Text>
+              <Switch
+                value={tempAllowComments}
+                onValueChange={setTempAllowComments}
+                trackColor={{ false: '#666', true: '#21D0B2' }}
+                thumbColor="#dbe4ed"
+              />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Private Poll?</Text>
+              <Switch
+                value={tempIsPrivate}
+                onValueChange={setTempIsPrivate}
+                trackColor={{ false: '#666', true: '#21D0B2' }}
+                thumbColor="#dbe4ed"
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modalize>
 
       {/* Delete Poll Confirmation drawer */}
@@ -235,7 +430,7 @@ const HomeScreen = () => {
         ref={deleteConfirmModalRef}
         withReactModal
         coverScreen
-        adjustToContentHeight
+        snapPoint={height * 0.35}
         modalStyle={{ backgroundColor: colors.dark }}
         handleStyle={{ backgroundColor: '#888' }}
       >
@@ -288,7 +483,7 @@ const styles = StyleSheet.create({
   navTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.light,
     marginTop: 30,
   },
   pollCardContainer: {
@@ -296,7 +491,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   firstPollCardContainer: {
-    marginTop: 118, // enough space below the navbar
+    marginTop: 118,
     marginHorizontal: 16,
     marginBottom: 16,
   },
@@ -331,27 +526,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  deleteButton: {
-    backgroundColor: '#21D0B2',
-    borderRadius: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 24,
-    width: 80,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-
-  // The edit settings content
+  // The edit settings content (toggles only)
   editModalContent: {
     padding: 25,
   },
   editTitle: {
     fontSize: 18,
-    color: '#fff',
+    color: colors.light,
     marginBottom: 16,
     fontWeight: '600',
   },
@@ -363,7 +544,7 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 16,
-    color: '#fff',
+    color: colors.light,
   },
   saveButton: {
     backgroundColor: '#21D0B2',
@@ -371,11 +552,87 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 10,
   },
   saveButtonText: {
     color: colors.dark,
     fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // TOP ROW for the full edit poll: Cancel + Save Poll
+  editButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 12,
+    marginVertical: 20,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+  },
+  editCancelText: {
+    color: colors.light,
+    fontSize: 16,
+    position: 'absolute',
+    left: 16,
+  },
+  editSaveButton: {
+    backgroundColor: '#21D0B2',
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    borderRadius: 20,
+    position: 'absolute',
+    right: 16,
+  },
+  editSaveText: {
+    color: colors.dark,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  // The full edit poll content
+  fullEditContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  editInput: {
+    backgroundColor: '#2a3d52',
+    borderRadius: 8,
+    fontSize: 16,
+    padding: 25,
+    color: colors.light,
+    marginTop: 15,
+    marginBottom: 20,
+    textAlignVertical: 'top',
+  },
+
+  // Dynamic options
+  optionContainer: {
+    position: 'relative',
+    marginBottom: 10,
+    width: '100%',
+  },
+  optionInput: {
+    borderWidth: 1,
+    borderColor: '#2a3d52',
+    backgroundColor: '#2a3d52',
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingLeft: 24,
+    paddingRight: 40, // for minus button
+    color: colors.light,
+    marginVertical: 1,
+  },
+  minusButton: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+  },
+  addOptionButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
+  addOptionText: {
+    color: '#21D0B2',
     fontWeight: '600',
   },
 
@@ -397,14 +654,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   deleteConfirmButton: {
-    backgroundColor: colors.red,
+    backgroundColor: colors.red || 'red',
     borderRadius: 20,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 4,
   },
   deleteConfirmButtonText: {
-    color: '#fff',
+    color: colors.light,
     fontSize: 16,
     fontWeight: '600',
   },

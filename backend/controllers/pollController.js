@@ -1,5 +1,4 @@
 const { Poll, User, PollOption, Comment, Vote } = require('../models');
-const { sequelize } = require('../models');
 
 // POST /api/polls - Create a new poll
 exports.createPoll = async (req, res, next) => {
@@ -222,8 +221,40 @@ exports.updatePoll = async (req, res, next) => {
       err.status = 404;
       return next(err);
     }
-    await poll.update(req.body);
-    res.status(200).json({ message: 'Poll updated successfully', poll });
+
+    // 1) Update the Poll fields (question, allowComments, isPrivate, etc.)
+    await poll.update({
+      question: req.body.question,
+      allowComments: req.body.allowComments,
+      isPrivate: req.body.isPrivate,
+      // any other Poll columns
+    });
+
+    // 2) If options are provided, replace old PollOptions
+    if (Array.isArray(req.body.options)) {
+      // Remove old options for this poll
+      await PollOption.destroy({ where: { pollId: poll.id } });
+
+      // Insert new options
+      const newOptions = req.body.options.map((opt, index) => ({
+        pollId: poll.id,
+        optionText: opt.optionText,
+        optionImage: opt.optionImage || null,
+        sortOrder: index,
+      }));
+      await PollOption.bulkCreate(newOptions);
+    }
+
+    // 3) Re-query to include the updated poll with its new options
+    const updatedPoll = await Poll.findOne({
+      where: { id: poll.id },
+      include: [{ model: PollOption, as: 'options' }], // match your association alias
+    });
+
+    res.status(200).json({
+      message: 'Poll updated successfully',
+      poll: updatedPoll,
+    });
   } catch (error) {
     next(error);
   }

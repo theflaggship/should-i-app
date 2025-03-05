@@ -1,5 +1,3 @@
-// src/navigation/MainTabNavigator.js
-
 import React, { useRef, useState, useContext } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';

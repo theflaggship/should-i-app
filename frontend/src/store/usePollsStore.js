@@ -120,6 +120,19 @@ export const usePollsStore = create((set, get) => ({
     }));
   },
 
+  updatePollInStore: (pollId, partialData) => {
+    set((state) => ({
+      polls: state.polls.map((p) => {
+        if (p.id !== pollId) return p;
+        return {
+          ...p,
+          ...partialData, // merges toggles or other fields
+          options: partialData.options || [],
+        };
+      }),
+    }));
+  },
+
   // Initialize store
   initPolls: (token) => {
     get().fetchAllPolls(token);

@@ -49,6 +49,18 @@ export const deletePoll = async (token, pollId) => {
   }
 };
 
+export const updatePoll = async (token, pollId, data) => {
+  try {
+    // If your backend uses PUT /polls/:id
+    const response = await api.put(`/polls/${pollId}`, data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data; // e.g. { message: 'Poll updated successfully', poll: {...} }
+  } catch (error) {
+    throw error;
+  }
+};
+
 
 // -----------------------
 // Comment REST API Calls

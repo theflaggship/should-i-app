@@ -12,15 +12,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  RefreshControl, // <-- ADDED
 } from 'react-native';
 import { Modalize } from 'react-native-modalize';
-import { Settings, Trash2, MinusCircle } from 'react-native-feather'; // ADDED MinusCircle for removing options
+import { Settings, Trash2, MinusCircle } from 'react-native-feather';
 import { AuthContext } from '../../context/AuthContext';
 import { usePollsStore } from '../../store/usePollsStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PollCard from '../../components/PollCard';
 import colors from '../../styles/colors';
-import { deletePoll, updatePoll } from '../../services/pollService'; // if you have a deletePoll function
+import { deletePoll, updatePoll } from '../../services/pollService';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const { height } = Dimensions.get('window');
@@ -30,6 +31,9 @@ const HomeScreen = () => {
   const polls = usePollsStore((state) => state.polls);
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
+
+  const fetchAllPolls = usePollsStore((state) => state.fetchAllPolls); // <-- to refresh
+  const removePoll = usePollsStore((state) => state.removePoll);
 
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -52,29 +56,38 @@ const HomeScreen = () => {
 
   // For "Edit Poll" scenario
   const [tempQuestion, setTempQuestion] = useState('');
-  // We'll store poll options as an array of strings
   const [tempOptions, setTempOptions] = useState([]);
+
+  // For pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
 
   // Animate the navbar
   const navbarTranslate = scrollY.interpolate({
     inputRange: [0, 50],
-    outputRange: [0, -35],
+    outputRange: [0, -50],
     extrapolate: 'clamp',
   });
+
+  // Pull-to-refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchAllPolls(token); // re-fetch polls
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Show the main menu with the chosen poll
   const handleOpenMenu = (poll) => {
     setSelectedPoll(poll);
-    // Preload toggles from poll if needed
     setTempAllowComments(poll.allowComments);
     setTempIsPrivate(poll.isPrivate);
-
-    // For full edit
     setTempQuestion(poll.question || '');
-    // Convert each option object => text
     const optionTexts = (poll.options || []).map((opt) => opt.text || '');
     setTempOptions(optionTexts);
-
     menuModalRef.current?.open();
   };
 
@@ -88,9 +101,9 @@ const HomeScreen = () => {
   const confirmDeletePoll = async () => {
     try {
       await deletePoll(token, selectedPoll.id);
-      usePollsStore.getState().removePoll(selectedPoll.id);
-      deleteConfirmModalRef.current?.close(); // close confirm
-      menuModalRef.current?.close();          // close main menu
+      removePoll(selectedPoll.id);
+      deleteConfirmModalRef.current?.close();
+      menuModalRef.current?.close();
     } catch (err) {
       console.error('Failed to delete poll:', err);
     }
@@ -101,9 +114,6 @@ const HomeScreen = () => {
     try {
       const payload = { allowComments: tempAllowComments, isPrivate: tempIsPrivate };
       const result = await updatePoll(token, selectedPoll.id, payload);
-  
-      // Suppose the backend returns { poll: updatedPoll }
-      // or something similar
       if (result.poll) {
         usePollsStore.getState().updatePollInStore(selectedPoll.id, {
           question: result.poll.question,
@@ -115,7 +125,6 @@ const HomeScreen = () => {
           })),
         });
       }
-  
       editModalRef.current?.close();
       menuModalRef.current?.close();
     } catch (err) {
@@ -124,8 +133,7 @@ const HomeScreen = () => {
     }
   };
 
-  // ========== FULL EDIT POLL LOGIC ==========
-  // Add or remove option strings
+  // FULL EDIT LOGIC
   const addOptionField = () => {
     if (tempOptions.length < 4) {
       setTempOptions([...tempOptions, '']);
@@ -150,18 +158,17 @@ const HomeScreen = () => {
           sortOrder: idx,
         }))
         .filter((opt) => opt.optionText !== '');
-  
+
       const payload = {
         question: trimmedQuestion,
-        options: validOptions, // shape your backend expects
+        options: validOptions,
         allowComments: tempAllowComments,
         isPrivate: tempIsPrivate,
       };
-  
+
       const result = await updatePoll(token, selectedPoll.id, payload);
-  
+
       if (result.poll && Array.isArray(result.poll.options)) {
-        // Patch store or re-fetch
         usePollsStore.getState().updatePollInStore(selectedPoll.id, {
           question: result.poll.question,
           allowComments: result.poll.allowComments,
@@ -174,7 +181,7 @@ const HomeScreen = () => {
       } else {
         console.warn('No poll or poll.options returned, or not an array');
       }
-  
+
       fullEditModalRef.current?.close();
       menuModalRef.current?.close();
     } catch (err) {
@@ -182,8 +189,6 @@ const HomeScreen = () => {
       alert('Could not update the poll. Please try again.');
     }
   };
-
-  // ========== END FULL EDIT POLL LOGIC ==========
 
   const handleMenuOption = (option) => {
     menuModalRef.current?.close();
@@ -195,23 +200,21 @@ const HomeScreen = () => {
       if (option === 'edit') {
         const total = getTotalVotes(selectedPoll);
         if (total === 0) {
-          // No votes => full edit
           fullEditModalRef.current?.open();
         } else {
-          // Votes exist => toggles only
           editModalRef.current?.open();
         }
       }
     }, 300);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <View style={styles.center}>
+  //       <ActivityIndicator size="large" color={colors.primary} />
+  //     </View>
+  //   );
+  // }
 
   if (error) {
     return (
@@ -224,9 +227,15 @@ const HomeScreen = () => {
   return (
     <View style={styles.container}>
       {/* Animated Navbar */}
-      <Animated.View style={[styles.navbar, { transform: [{ translateY: navbarTranslate }] }]}>
-        <Text style={styles.navTitle}>Should I?</Text>
+      <Animated.View
+        style={[styles.navbar, { transform: [{ translateY: navbarTranslate }] }]}
+      >
+        <Text style={styles.navTitle}>Whicha</Text>
       </Animated.View>
+
+      {loading && polls.length === 0 && (
+        <ActivityIndicator style={{ marginVertical: 20 }} color={colors.primary} />
+      )}
 
       <AnimatedFlatList
         data={polls}
@@ -243,6 +252,16 @@ const HomeScreen = () => {
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 16 }}
+        // ADDED RefreshControl for pull-to-refresh
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary} // iOS spinner color
+            colors={[colors.primary]} 
+            progressViewOffset={110}  // Android spinner color
+          />
+        }
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
@@ -336,20 +355,18 @@ const HomeScreen = () => {
       <Modalize
         snapPoint={height * 0.85}
         modalHeight={height * 0.93}
-        closeOnOverlayTap={false} 
+        closeOnOverlayTap={false}
         ref={fullEditModalRef}
         withReactModal
         coverScreen
         modalStyle={{ backgroundColor: colors.dark }}
         handleStyle={{ backgroundColor: '#888' }}
       >
-        {/* KeyboardAvoidingView to handle iOS keyboard */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
-          keyboardVerticalOffset={30} // adjust if needed
+          keyboardVerticalOffset={30}
         >
-          {/* Top row: Cancel + Save Poll */}
           <View style={styles.editButtonRow}>
             <Text
               style={styles.editCancelText}
@@ -365,7 +382,6 @@ const HomeScreen = () => {
           </View>
 
           <View style={styles.fullEditContent}>
-            {/* Edit question */}
             <TextInput
               style={styles.editInput}
               value={tempQuestion}
@@ -375,7 +391,6 @@ const HomeScreen = () => {
               multiline
             />
 
-            {/* Dynamic options array */}
             {tempOptions.map((opt, idx) => (
               <View style={styles.optionContainer} key={`editOption-${idx}`}>
                 <TextInput
@@ -395,14 +410,12 @@ const HomeScreen = () => {
                 )}
               </View>
             ))}
-            {/* +Add another option (only if < 4) */}
             {tempOptions.length < 4 && (
               <TouchableOpacity style={styles.addOptionButton} onPress={addOptionField}>
                 <Text style={styles.addOptionText}>+ Add another option</Text>
               </TouchableOpacity>
             )}
 
-            {/* Toggles */}
             <View style={styles.toggleRow}>
               <Text style={styles.toggleLabel}>Allow Comments?</Text>
               <Switch
@@ -425,7 +438,6 @@ const HomeScreen = () => {
         </KeyboardAvoidingView>
       </Modalize>
 
-      {/* Delete Poll Confirmation drawer */}
       <Modalize
         ref={deleteConfirmModalRef}
         withReactModal
@@ -458,9 +470,6 @@ const HomeScreen = () => {
 
 export default HomeScreen;
 
-// ----------------------------------------
-// --------------- STYLES ----------------
-// ----------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -505,7 +514,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // The main menu content
   menuModalContent: {
     padding: 25,
   },
@@ -525,8 +533,6 @@ const styles = StyleSheet.create({
     color: colors.light,
     fontSize: 16,
   },
-
-  // The edit settings content (toggles only)
   editModalContent: {
     padding: 25,
   },
@@ -558,8 +564,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // TOP ROW for the full edit poll: Cancel + Save Poll
+  cancelButton: {
+    borderWidth: 1,
+    backgroundColor: '#2a3d52',
+    borderColor: '#2a3d52',
+    borderRadius: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  cancelButtonText: {
+    color: colors.light,
+    fontSize: 16,
+    fontWeight: '500',
+  },
   editButtonRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,8 +607,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-
-  // The full edit poll content
   fullEditContent: {
     paddingHorizontal: 16,
     paddingBottom: 16,
@@ -604,8 +621,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlignVertical: 'top',
   },
-
-  // Dynamic options
   optionContainer: {
     position: 'relative',
     marginBottom: 10,
@@ -618,7 +633,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 12,
     paddingLeft: 24,
-    paddingRight: 40, // for minus button
+    paddingRight: 40,
     color: colors.light,
     marginVertical: 1,
   },
@@ -635,8 +650,6 @@ const styles = StyleSheet.create({
     color: '#21D0B2',
     fontWeight: '600',
   },
-
-  // The delete confirm content
   deleteConfirmContent: {
     padding: 25,
   },
@@ -665,19 +678,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  cancelButton: {
-    borderWidth: 1,
-    backgroundColor: '#2a3d52',
-    borderColor: '#2a3d52',
-    borderRadius: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  cancelButtonText: {
-    color: colors.light,
-    fontSize: 16,
-    fontWeight: '500',
-  },
 });
+

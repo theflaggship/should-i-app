@@ -1,5 +1,4 @@
-// PollDetailsScreen.js
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +7,7 @@ import {
   Image,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  FlatList
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,7 +48,11 @@ const PollDetailsScreen = ({ route }) => {
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
+  // Local comment input
   const [commentText, setCommentText] = useState('');
+
+  // 1) Create a ref for FlatList
+  const flatListRef = useRef(null);
 
   // Find the poll in the store
   const poll = polls.find((p) => p.id === pollId);
@@ -62,7 +65,6 @@ const PollDetailsScreen = ({ route }) => {
 
     // 1) Create a local "temp" comment
     const tempComment = {
-      // Temporary ID
       id: 'temp-' + Date.now(),
       text: trimmedText,
       createdAt: new Date().toISOString(),
@@ -77,11 +79,18 @@ const PollDetailsScreen = ({ route }) => {
     usePollsStore.getState().updateCommentState(poll.id, tempComment);
 
     // 3) Send the actual comment to the server (WebSocket)
-    //    Pass the trimmed text so it matches the local temp comment.
     sendCommentWS(user.id, poll.id, trimmedText);
 
     // 4) Clear the input
     setCommentText('');
+
+    // 5) Scroll to the bottom so the new comment is visible
+    //    Use a small timeout to ensure the new comment is in the data
+    setTimeout(() => {
+      if (flatListRef.current && poll.comments.length > 0) {
+        flatListRef.current.scrollToEnd({ animated: true });
+      }
+    }, 100);
   };
 
   if (loading) {
@@ -125,6 +134,7 @@ const PollDetailsScreen = ({ route }) => {
       </View>
 
       <FlatList
+        ref={flatListRef}
         style={styles.commentsList}
         data={comments}
         keyExtractor={(item, index) => (item?.id ? item.id.toString() : index.toString())}

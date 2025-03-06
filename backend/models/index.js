@@ -36,7 +36,7 @@ const Follow = FollowFactory(sequelize, DataTypes);
 
 // User <-> Poll (one-to-many)
 User.hasMany(Poll, { foreignKey: 'userId' });
-Poll.belongsTo(User, { foreignKey: 'userId' });
+Poll.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 
 // Poll <-> PollOption (one-to-many)
 Poll.hasMany(PollOption, {

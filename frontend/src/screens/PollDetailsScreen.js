@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthContext } from '../../context/AuthContext';
-import { usePollsStore } from '../../store/usePollsStore';
-import { sendCommentWS } from '../../services/pollService';
-import PollCard from '../../components/PollCard';
-import colors from '../../styles/colors';
+import { AuthContext } from '../context/AuthContext';
+import { usePollsStore } from '../store/usePollsStore';
+import { sendCommentWS } from '../services/pollService';
+import PollCard from '../components/PollCard';
+import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 

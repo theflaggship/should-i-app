@@ -208,14 +208,6 @@ const HomeScreen = () => {
     }, 300);
   };
 
-  // if (loading) {
-  //   return (
-  //     <View style={styles.center}>
-  //       <ActivityIndicator size="large" color={colors.primary} />
-  //     </View>
-  //   );
-  // }
-
   if (error) {
     return (
       <View style={styles.center}>

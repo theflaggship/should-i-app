@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from './HomeScreen';
-import PollDetailsScreen from './PollDetailsScreen'
+import PollDetailsScreen from '../PollDetailsScreen'
 
 const Stack = createStackNavigator();
 

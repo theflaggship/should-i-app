@@ -20,7 +20,7 @@ exports.createPoll = async (req, res, next) => {
     const pollWithUserAndOptions = await Poll.findOne({
       where: { id: newPoll.id },
       include: [
-        { model: User, attributes: ['id', 'username'] },
+        { model: User, as: 'user', attributes: ['id', 'username'] },
         {
           model: PollOption,
           as: 'options',
@@ -45,6 +45,7 @@ exports.getAllPolls = async (req, res, next) => {
       include: [
         {
           model: User,
+          as: 'user',
           attributes: ['id', 'username', 'profilePicture']
         },
         {
@@ -94,11 +95,11 @@ exports.getAllPolls = async (req, res, next) => {
         allowComments: poll.allowComments,
         commentCount: poll.Comments?.length || 0,
         userVote,
-        user: poll.User
+        user: poll.user
           ? {
-            id: poll.User.id,
-            username: poll.User.username,
-            profilePicture: poll.User.profilePicture,
+            id: poll.user.id,
+            username: poll.user.username,
+            profilePicture: poll.user.profilePicture,
           }
           : null,
         options: poll.options.map((opt) => ({
@@ -139,6 +140,7 @@ exports.getPollById = async (req, res, next) => {
       include: [
         {
           model: User,
+          as: 'user',
           attributes: ['id', 'username', 'profilePicture']
         },
         {

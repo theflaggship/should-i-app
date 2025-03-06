@@ -2,7 +2,7 @@ import React, { useRef, useState, useContext } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeStack from '../screens/HomeStack/HomeStack';
-import ProfileScreen from '../screens/ProfileScreen';
+import ProfileStack from '../screens/ProfileStack/ProfileStack';
 import { Home, PlusCircle, User, MinusCircle } from 'react-native-feather';
 import colors from '../styles/colors';
 
@@ -169,7 +169,7 @@ const MainTabNavigator = () => {
           }}
         />
 
-        <Tab.Screen name="Profile" component={ProfileScreen} />
+        <Tab.Screen name="Profile" component={ProfileStack} />
       </Tab.Navigator>
 
       {/* 4) The Modalize for creating a poll */}

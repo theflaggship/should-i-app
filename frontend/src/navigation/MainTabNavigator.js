@@ -112,7 +112,7 @@ const MainTabNavigator = () => {
         options: validOptions,
         isPrivate,
         allowComments,
-        isImagePoll: false, 
+        isImagePoll: false,
       };
       // Call your backend
       const response = await createPoll(token, payload);
@@ -207,10 +207,12 @@ const MainTabNavigator = () => {
           <View style={styles.formContainer}>
             {/* Row with user pic + multiline text input */}
             <View style={styles.questionRow}>
-              <Image
-                source={{ uri: user?.profilePicture }}
-                style={styles.profilePic}
-              />
+              <View style={styles.profilePicContainer}>
+                <Image
+                  source={{ uri: user?.profilePicture }}
+                  style={styles.profilePic}
+                />
+              </View>
               <TextInput
                 ref={questionInputRef}
                 style={styles.questionInput}
@@ -316,15 +318,17 @@ const styles = StyleSheet.create({
   },
   questionRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     marginBottom: 16,
     marginTop: 16,
+  },
+  profilePicContainer: {
+    justifyContent: 'center',
+    marginRight: 8,
   },
   profilePic: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 8,
     borderWidth: .5,
     borderColor: 'gray',
   },

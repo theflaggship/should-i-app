@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sendVoteWS } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather'; // <-- ADDED MoreHorizontal import
+import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather';
 import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
@@ -30,24 +30,27 @@ const getTimeElapsed = (createdAt) => {
 const formatDetailedDate = (createdAt) => {
   if (!createdAt) return '';
   const dateObj = new Date(createdAt);
-
-  // We'll use toLocaleString with some options
   const options = {
-    month: 'long',   // "February"
-    day: 'numeric',  // "27"
-    year: 'numeric', // "2025"
-    hour: 'numeric', // "12"
-    minute: '2-digit', // "00"
-    hour12: true,    // "PM" vs. 24-hour
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   };
   let formatted = dateObj.toLocaleString('en-US', options);
-  formatted = formatted.replace(',', '');     // remove first comma
-  formatted = formatted.replace(',', ' at');  // replace second comma with " at"
+  formatted = formatted.replace(',', ''); // remove first comma
+  formatted = formatted.replace(',', ' at'); // replace second comma with " at"
   return formatted;
 };
 
-// ADDED onOpenMenu in the props (default is undefined if not passed)
-const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestamp = false, onOpenMenu }) => {
+const PollCard = ({
+  poll,
+  onVote,
+  disableMainPress = false,
+  showDetailedTimestamp = false,
+  onOpenMenu,
+}) => {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
@@ -57,6 +60,9 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
   const userVote = poll?.userVote;
   const pollOptions = poll?.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
+
+  // We only show the fill bars + percentages if the user has voted on this poll
+  const userHasVoted = userVote != null;
 
   const handleOptionPress = (optionId) => {
     if (!user || !user.id) return;
@@ -75,7 +81,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
 
   const handleNavigateToProfile = () => {
     if (!finalUser?.id) return;
-    // Future user profile screen:
+    // Future user profile screen
     navigation.navigate('UserProfile', { userId: finalUser.id });
   };
 
@@ -114,9 +120,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
             onPress={handleNavigateToDetails}
             activeOpacity={0.8}
           >
-            <Text style={styles.timestamp}>
-              {getTimeElapsed(poll?.createdAt)}
-            </Text>
+            <Text style={styles.timestamp}>{getTimeElapsed(poll?.createdAt)}</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -133,20 +137,24 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
           {pollOptions.map((option) => {
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
-            const rawPercent =
-              totalVotes === 0
-                ? 0
-                : Math.round((votes / totalVotes) * 100);
-            const percentage = `${rawPercent}%`;
-            const fillBarDynamicRadius =
-              rawPercent === 100
-                ? {
+
+            // If user hasn't voted, fill bars + percentages are hidden
+            let rawPercent = 0;
+            let percentage = '0%';
+            if (userHasVoted && totalVotes > 0) {
+              rawPercent = Math.round((votes / totalVotes) * 100);
+              percentage = `${rawPercent}%`;
+            }
+
+            // Adjust corners if user has voted
+            const fillBarDynamicRadius = rawPercent === 100
+              ? {
                   borderTopLeftRadius: 20,
                   borderBottomLeftRadius: 20,
                   borderTopRightRadius: 20,
                   borderBottomRightRadius: 20,
                 }
-                : {
+              : {
                   borderTopLeftRadius: 20,
                   borderBottomLeftRadius: 20,
                   borderTopRightRadius: 0,
@@ -163,16 +171,19 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
                 onPress={() => handleOptionPress(option.id)}
                 activeOpacity={0.8}
               >
-                <View
-                  style={[
-                    styles.fillBar,
-                    fillBarDynamicRadius,
-                    {
-                      width: percentage,
-                      backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
-                    },
-                  ]}
-                />
+                {/* Only render the fill bar if userHasVoted */}
+                {userHasVoted && (
+                  <View
+                    style={[
+                      styles.fillBar,
+                      fillBarDynamicRadius,
+                      {
+                        width: percentage,
+                        backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
+                      },
+                    ]}
+                  />
+                )}
                 <View style={styles.optionContent}>
                   <View style={styles.optionLeft}>
                     {isVoted && (
@@ -191,13 +202,14 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
                       {option.text}
                     </Text>
                   </View>
+                  {/* Only show the percentage text if userHasVoted */}
                   <Text
                     style={[
                       styles.percentageText,
                       isVoted && styles.selectedOptionText,
                     ]}
                   >
-                    {percentage}
+                    {userHasVoted ? percentage : ''}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -214,11 +226,7 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
         <View style={styles.bottomRow}>
           {poll.allowComments && (
             <View style={styles.commentContainer}>
-              <MessageCircle
-                width={18}
-                color="gray"
-                style={styles.commentIcon}
-              />
+              <MessageCircle width={18} color="gray" style={styles.commentIcon} />
               <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
             </View>
           )}
@@ -231,16 +239,12 @@ const PollCard = ({ poll, onVote, disableMainPress = false, showDetailedTimestam
             <Text style={styles.voteCount}>{totalVotes}</Text>
           </View>
 
-          {/* ADDED ELLIPSIS: show if poll belongs to logged-in user and onOpenMenu is provided */}
+          {/* Show ellipsis if poll belongs to logged-in user and onOpenMenu is provided */}
           {finalUser?.id === user?.id && onOpenMenu && (
-            <TouchableOpacity
-              style={styles.ellipsisButton}
-              onPress={() => onOpenMenu(poll)}
-            >
+            <TouchableOpacity style={styles.ellipsisButton} onPress={() => onOpenMenu(poll)}>
               <MoreHorizontal width={20} color="gray" />
             </TouchableOpacity>
           )}
-          {/* END ELLIPSIS */}
         </View>
       </TouchableOpacity>
     </View>
@@ -261,14 +265,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    // The row is split into left and right pressables
   },
   userRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   userRowRight: {
-    marginLeft: 'auto', // push to the right
+    marginLeft: 'auto',
   },
   profileImage: {
     width: 40,
@@ -288,9 +291,7 @@ const styles = StyleSheet.create({
     color: 'gray',
     marginLeft: 'auto',
   },
-  mainBody: {
-    // no style changes
-  },
+  mainBody: {},
   question: {
     fontSize: 18,
     color: colors.dark,
@@ -322,14 +323,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingRight: 12,
     paddingLeft: 22,
+    flexWrap: 'wrap',
   },
   optionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   checkMarkContainer: {
-    marginRight: 0,
+    marginRight: 4,
     marginLeft: -4,
+    justifyContent: 'center', 
+    alignItems: 'center',
   },
   singleVoteCircle: {
     width: 17,
@@ -345,6 +351,8 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: colors.dark,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   selectedOptionBorder: {
     borderColor: colors.secondary,
@@ -401,8 +409,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-
-  // ADDED STYLE for ellipsis button
   ellipsisButton: {
     marginLeft: 'auto',
     padding: 6,

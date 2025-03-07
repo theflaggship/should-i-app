@@ -2,8 +2,8 @@
 import React, { useContext } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { sendVoteWS } from '../services/pollService';
 import { AuthContext } from '../context/AuthContext';
+import { sendVoteWS } from '../services/pollService';
 import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather';
 import colors from '../styles/colors';
 
@@ -31,16 +31,16 @@ const formatDetailedDate = (createdAt) => {
   if (!createdAt) return '';
   const dateObj = new Date(createdAt);
   const options = {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
+    month: 'long',   // "February"
+    day: 'numeric',  // "27"
+    year: 'numeric', // "2025"
+    hour: 'numeric', // "12"
+    minute: '2-digit', // "00"
+    hour12: true,    // "PM"
   };
   let formatted = dateObj.toLocaleString('en-US', options);
-  formatted = formatted.replace(',', ''); // remove first comma
-  formatted = formatted.replace(',', ' at'); // replace second comma with " at"
+  formatted = formatted.replace(',', '');
+  formatted = formatted.replace(',', ' at');
   return formatted;
 };
 
@@ -54,21 +54,34 @@ const PollCard = ({
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
-  // Unify poll.user vs. poll.User
-  const finalUser = poll.user || poll.User;
+  // Safely unify poll.user vs. poll.User
+  const finalUser = poll?.user || poll?.User;
+  if (!poll) {
+    return (
+      <View style={styles.card}>
+        <Text>No poll data found.</Text>
+      </View>
+    );
+  }
 
-  const userVote = poll?.userVote;
+  const userVote = poll?.userVote;   // ID of the option the user voted for, or null
   const pollOptions = poll?.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
 
-  // We only show the fill bars + percentages if the user has voted on this poll
-  const userHasVoted = userVote != null;
+  // Decide if we ALWAYS show the fill bar & percentages
+  // 1) If poll belongs to the logged-in user => ALWAYS show
+  // 2) Otherwise => ONLY show if userVote != null
+  const isOwner = finalUser?.id === user?.id;
+  // If poll is not owned => must have voted to see fill bar
+  const showFillBarAndPercent = isOwner || userVote !== null;
 
   const handleOptionPress = (optionId) => {
-    if (!user || !user.id) return;
+    if (!user?.id) return;
     if (onVote) {
+      // A callback passed in, e.g. to update store
       onVote(poll.id, optionId);
     } else {
+      // Otherwise use WebSocket
       sendVoteWS(user.id, poll.id, optionId);
     }
   };
@@ -79,31 +92,17 @@ const PollCard = ({
     }
   };
 
-  const handleNavigateToProfile = () => {
-    if (!finalUser?.id) return;
-    // Future user profile screen
-    navigation.navigate('UserProfile', { userId: finalUser.id });
-  };
-
-  if (!poll) {
-    return (
-      <View style={styles.card}>
-        <Text>No poll data found.</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.card}>
+      {/* Header row: user info */}
       <TouchableOpacity
         style={styles.userRow}
         activeOpacity={0.8}
         onPress={handleNavigateToDetails}
       >
-        {/* Overlaid child pressable for profile pic + username => user profile */}
         <TouchableOpacity
           style={styles.userRowLeft}
-          // onPress={handleNavigateToProfile}
+          // onPress={handleNavigateToProfile} // If you want a separate press
           activeOpacity={0.8}
           pointerEvents="box-only"
         >
@@ -125,6 +124,7 @@ const PollCard = ({
         )}
       </TouchableOpacity>
 
+      {/* Body: question + poll options */}
       <TouchableOpacity
         activeOpacity={0.8}
         disabled={disableMainPress}
@@ -138,28 +138,30 @@ const PollCard = ({
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
 
-            // If user hasn't voted, fill bars + percentages are hidden
-            let rawPercent = 0;
-            let percentage = '0%';
-            if (userHasVoted && totalVotes > 0) {
-              rawPercent = Math.round((votes / totalVotes) * 100);
-              percentage = `${rawPercent}%`;
-            }
+            // Always compute rawPercent, but we only use it if showFillBarAndPercent
+            const rawPercent =
+              totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
 
-            // Adjust corners if user has voted
-            const fillBarDynamicRadius = rawPercent === 100
-              ? {
-                  borderTopLeftRadius: 20,
-                  borderBottomLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  borderBottomRightRadius: 20,
-                }
-              : {
-                  borderTopLeftRadius: 20,
-                  borderBottomLeftRadius: 20,
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
-                };
+            // If we’re not showing fill bar => width=0, text=''
+            const fillWidth = showFillBarAndPercent ? `${rawPercent}%` : '0%';
+            const percentText = showFillBarAndPercent ? `${rawPercent}%` : '';
+
+            // If rawPercent is 100 => round corners both sides
+            // Otherwise => corners only on left side
+            const fillBarDynamicRadius =
+              rawPercent === 100
+                ? {
+                    borderTopLeftRadius: 20,
+                    borderBottomLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    borderBottomRightRadius: 20,
+                  }
+                : {
+                    borderTopLeftRadius: 20,
+                    borderBottomLeftRadius: 20,
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
+                  };
 
             return (
               <TouchableOpacity
@@ -171,19 +173,19 @@ const PollCard = ({
                 onPress={() => handleOptionPress(option.id)}
                 activeOpacity={0.8}
               >
-                {/* Only render the fill bar if userHasVoted */}
-                {userHasVoted && (
-                  <View
-                    style={[
-                      styles.fillBar,
-                      fillBarDynamicRadius,
-                      {
-                        width: percentage,
-                        backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
-                      },
-                    ]}
-                  />
-                )}
+                {/* Fill Bar */}
+                <View
+                  style={[
+                    styles.fillBar,
+                    fillBarDynamicRadius,
+                    {
+                      width: fillWidth, // either "XX%" or "0%"
+                      backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
+                    },
+                  ]}
+                />
+
+                {/* Option text + percentage */}
                 <View style={styles.optionContent}>
                   <View style={styles.optionLeft}>
                     {isVoted && (
@@ -202,14 +204,13 @@ const PollCard = ({
                       {option.text}
                     </Text>
                   </View>
-                  {/* Only show the percentage text if userHasVoted */}
                   <Text
                     style={[
                       styles.percentageText,
                       isVoted && styles.selectedOptionText,
                     ]}
                   >
-                    {userHasVoted ? percentage : ''}
+                    {percentText}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -223,6 +224,7 @@ const PollCard = ({
           </Text>
         )}
 
+        {/* Footer row: commentCount, totalVoteCount, ellipsis */}
         <View style={styles.bottomRow}>
           {poll.allowComments && (
             <View style={styles.commentContainer}>
@@ -230,6 +232,7 @@ const PollCard = ({
               <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
             </View>
           )}
+
           <View style={styles.voteContainer}>
             <View style={styles.checkMarkContainer}>
               <View style={styles.totalVoteCircle}>
@@ -239,9 +242,12 @@ const PollCard = ({
             <Text style={styles.voteCount}>{totalVotes}</Text>
           </View>
 
-          {/* Show ellipsis if poll belongs to logged-in user and onOpenMenu is provided */}
+          {/* Show ellipsis if poll belongs to user and we have onOpenMenu */}
           {finalUser?.id === user?.id && onOpenMenu && (
-            <TouchableOpacity style={styles.ellipsisButton} onPress={() => onOpenMenu(poll)}>
+            <TouchableOpacity
+              style={styles.ellipsisButton}
+              onPress={() => onOpenMenu(poll)}
+            >
               <MoreHorizontal width={20} color="gray" />
             </TouchableOpacity>
           )}
@@ -253,7 +259,7 @@ const PollCard = ({
 
 export default PollCard;
 
-// -------------- STYLES --------------
+// ---------------- STYLES ----------------
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',
@@ -323,19 +329,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingRight: 12,
     paddingLeft: 22,
-    flexWrap: 'wrap',
   },
   optionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    flexWrap: 'wrap',
   },
   checkMarkContainer: {
-    marginRight: 4,
+    marginRight: 0,
     marginLeft: -4,
-    justifyContent: 'center', 
-    alignItems: 'center',
   },
   singleVoteCircle: {
     width: 17,
@@ -351,8 +352,6 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: colors.dark,
-    flexShrink: 1,
-    flexWrap: 'wrap',
   },
   selectedOptionBorder: {
     borderColor: colors.secondary,

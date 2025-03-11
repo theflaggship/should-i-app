@@ -17,14 +17,7 @@ import { AuthContext } from '../../context/AuthContext';
 import PollCard from '../../components/PollCard';
 import CommentCard from '../../components/CommentCard';
 import { sendVoteWS } from '../../services/pollService';
-
-// If you also want to fetch user comments or votes, import them:
-import {
-  getUserComments,
-  getUserVotes,
-} from '../../services/userService';
-
-
+import { getUserComments, getUserVotes } from '../../services/userService';
 import { usePollsStore } from '../../store/usePollsStore';
 import { deletePoll, updatePoll } from '../../services/pollService';
 
@@ -53,7 +46,6 @@ const ProfileScreen = ({ navigation }) => {
   const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
   const [votes, setVotes] = useState([]);
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
-  
 
   // For modals
   const menuModalRef = useRef(null);
@@ -80,26 +72,21 @@ const ProfileScreen = ({ navigation }) => {
     sendVoteWS(user.id, pollId, optionId);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 2) Switch tabs
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Switch tabs
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
     if (tab === TABS.POLLS) {
-      // re-fetch user polls if desired
       fetchUserPolls(token, user.id);
     } else if (tab === TABS.COMMENTS) {
       try {
         const data = await getUserComments(user.id, token);
-        // 'data' is an array of comments from the backend
-        // Each comment has: { id, commentText, createdAt, poll: {...}, user: {...} }
         setComments(data);
-  
-        // Now group them by poll
+
+        // Group them by poll
         const groupedMap = {};
         data.forEach((comment) => {
-          const p = comment.poll; // if your alias is 'poll'
-          if (!p) return; // skip if no poll
+          const p = comment.poll;
+          if (!p) return;
           if (!groupedMap[p.id]) {
             groupedMap[p.id] = {
               pollId: p.id,
@@ -107,7 +94,7 @@ const ProfileScreen = ({ navigation }) => {
                 id: p.id,
                 question: p.question,
                 createdAt: p.createdAt,
-                user: p.user, // the poll owner's user object
+                user: p.user,
               },
               userComments: [],
             };
@@ -116,12 +103,10 @@ const ProfileScreen = ({ navigation }) => {
             id: comment.id,
             text: comment.commentText,
             createdAt: comment.createdAt,
-            // etc
           });
         });
         const groupedArray = Object.values(groupedMap);
         setCommentsGroupedByPoll(groupedArray);
-  
       } catch (err) {
         console.error('Fetching user comments error:', err);
       }
@@ -135,9 +120,7 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 3) Ellipsis + modals
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Ellipsis + modals
   const handleOpenMenu = (poll) => {
     setSelectedPoll(poll);
     setTempAllowComments(poll.allowComments);
@@ -155,10 +138,8 @@ const ProfileScreen = ({ navigation }) => {
         return;
       }
       if (option === 'edit') {
-        // Full edit
         fullEditModalRef.current?.open();
       } else if (option === 'interaction') {
-        // Toggles only
         editModalRef.current?.open();
       }
     }, 300);
@@ -167,7 +148,6 @@ const ProfileScreen = ({ navigation }) => {
   const confirmDeletePoll = async () => {
     try {
       await deletePoll(token, selectedPoll.id);
-      // remove from store
       usePollsStore.setState((state) => ({
         userPolls: state.userPolls.filter((p) => p.id !== selectedPoll.id),
       }));
@@ -230,12 +210,16 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 4) Render tab content
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Render tab content
   const renderTabContent = () => {
     if (loading) {
-      return <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} size="large" />;
+      return (
+        <ActivityIndicator
+          style={{ marginTop: 20 }}
+          color={colors.primary}
+          size="large"
+        />
+      );
     }
     if (error) {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
@@ -247,11 +231,7 @@ const ProfileScreen = ({ navigation }) => {
           data={userPolls}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <PollCard
-              poll={item}
-              onVote={handleVote}       // <---- The critical part
-              onOpenMenu={handleOpenMenu}
-            />
+            <PollCard poll={item} onVote={handleVote} onOpenMenu={handleOpenMenu} />
           )}
           contentContainerStyle={{ paddingBottom: 16 }}
         />
@@ -262,10 +242,7 @@ const ProfileScreen = ({ navigation }) => {
           data={commentsGroupedByPoll}
           keyExtractor={(item) => item.pollId.toString()}
           renderItem={({ item }) => (
-            <CommentCard
-              poll={item.poll}                 // pass the poll object
-              userComments={item.userComments} // pass the array of user’s comments on that poll
-            />
+            <CommentCard poll={item.poll} userComments={item.userComments} />
           )}
           contentContainerStyle={{ paddingBottom: 16 }}
         />
@@ -292,23 +269,34 @@ const ProfileScreen = ({ navigation }) => {
     return null;
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 5) UI
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Basic profile header */}
+      {/* 
+        Updated arrangement:
+        - Profile pic 100x100 at top-left
+        - Edit Profile button on the right side, center-aligned with the bottom of the pic
+        - Username below pic, summary below that
+        - Stats row at bottom of this header, above tabs
+      */}
       <View style={styles.profileHeader}>
-        <Image
-          source={{ uri: user.profilePicture || 'https://picsum.photos/200/200' }}
-          style={styles.profileImage}
-        />
+        <View style={styles.picContainer}>
+          <Image
+            source={{ uri: user.profilePicture || 'https://picsum.photos/200/200' }}
+            style={styles.profileImage}
+          />
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.username}>@{user.username}</Text>
         <Text style={styles.summaryText}>
           {user.personalSummary || 'No personal summary yet.'}
         </Text>
 
-        {/* Example stats row (dummy) */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
@@ -327,19 +315,14 @@ const ProfileScreen = ({ navigation }) => {
             <Text style={styles.statLabel}>Total Votes</Text>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => navigation.navigate('EditProfile')}
-        >
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === TABS.POLLS && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            selectedTab === TABS.POLLS && styles.activeTabButton,
+          ]}
           onPress={() => handleTabPress(TABS.POLLS)}
         >
           <Text
@@ -353,7 +336,10 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === TABS.COMMENTS && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            selectedTab === TABS.COMMENTS && styles.activeTabButton,
+          ]}
           onPress={() => handleTabPress(TABS.COMMENTS)}
         >
           <Text
@@ -367,7 +353,10 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === TABS.VOTES && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            selectedTab === TABS.VOTES && styles.activeTabButton,
+          ]}
           onPress={() => handleTabPress(TABS.VOTES)}
         >
           <Text
@@ -381,9 +370,9 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Tab content */}
       <View style={styles.tabContent}>{renderTabContent()}</View>
 
+      {/* ======== The same modals from your existing code ======== */}
       <Modalize
         ref={menuModalRef}
         withReactModal
@@ -393,33 +382,23 @@ const ProfileScreen = ({ navigation }) => {
         handleStyle={{ backgroundColor: '#888' }}
       >
         <View style={styles.menuModalContent}>
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => handleMenuOption('edit')}
-          >
+          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('edit')}>
             <Text style={styles.menuRowText}>Edit Poll</Text>
             <Settings width={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => handleMenuOption('interaction')}
-          >
+          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('interaction')}>
             <Text style={styles.menuRowText}>Edit Interaction Settings</Text>
             <Settings width={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => handleMenuOption('delete')}
-          >
+          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('delete')}>
             <Text style={styles.menuRowText}>Delete Poll</Text>
             <Trash2 width={20} color="#ccc" />
           </TouchableOpacity>
         </View>
       </Modalize>
 
-      {/* 2) Edit Interaction Settings */}
       <Modalize
         ref={editModalRef}
         withReactModal
@@ -443,7 +422,6 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </Modalize>
 
-      {/* 3) Full Edit Poll (question + options + toggles) */}
       <Modalize
         ref={fullEditModalRef}
         withReactModal
@@ -454,14 +432,12 @@ const ProfileScreen = ({ navigation }) => {
       >
         <View style={styles.editModalContent}>
           <Text style={styles.editTitle}>Edit Poll (Full)</Text>
-          {/* e.g. question, toggles, dynamic options, etc. */}
           <TouchableOpacity style={styles.saveButton} onPress={handleSaveFullEdit}>
             <Text style={styles.saveButtonText}>Save Poll</Text>
           </TouchableOpacity>
         </View>
       </Modalize>
 
-      {/* 4) Delete Poll Confirmation */}
       <Modalize
         ref={deleteConfirmModalRef}
         withReactModal
@@ -500,19 +476,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.appBackground || '#fff',
   },
   profileHeader: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 12,
     backgroundColor: colors.dark,
+    paddingTop: 60,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+  },
+  picContainer: {
+    position: 'relative',
+    marginBottom: 10,
   },
   profileImage: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     borderRadius: 50,
     borderWidth: 1,
     borderColor: '#ccc',
-    marginBottom: 8,
   },
+  // Now the button is on the right side, bottom of the pic
+  editButton: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0, // Adjust as needed for perfect alignment
+    backgroundColor: '#21D0B2',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#21D0B2',
+  },
+  editButtonText: {
+    color: colors.dark,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
   username: {
     fontSize: 20,
     fontWeight: '600',
@@ -523,9 +520,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.light,
     marginBottom: 12,
-    textAlign: 'center',
-    paddingHorizontal: 20,
+    marginTop: 2,
   },
+
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -543,18 +540,6 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#ccc',
-  },
-  editButton: {
-    backgroundColor: '#21D0B2',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 6,
-    marginTop: 4,
-  },
-  editButtonText: {
-    color: colors.dark,
-    fontSize: 14,
-    fontWeight: '600',
   },
 
   tabsRow: {

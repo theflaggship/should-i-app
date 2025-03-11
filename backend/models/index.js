@@ -21,7 +21,7 @@ const PollCategoryFactory = require('./PollCategory');
 const PollAllowedUsersFactory = require('./PollAllowedUsers');
 const FollowFactory = require('./Follow');
 
-// 3. Initialize each model by calling the factory with (sequelize, DataTypes)
+// 3. Initialize each model by calling the factory
 const User = UserFactory(sequelize, DataTypes);
 const Poll = PollFactory(sequelize, DataTypes);
 const PollOption = PollOptionFactory(sequelize, DataTypes);
@@ -34,11 +34,21 @@ const Follow = FollowFactory(sequelize, DataTypes);
 
 // 4. Define associations
 
+// ─────────────────────────────────────────────────────────────────────────────
 // User <-> Poll (one-to-many)
-User.hasMany(Poll, { foreignKey: 'userId' });
-Poll.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+// ─────────────────────────────────────────────────────────────────────────────
+User.hasMany(Poll, {
+  as: 'polls',
+  foreignKey: 'userId',
+});
+Poll.belongsTo(User, {
+  as: 'user',
+  foreignKey: 'userId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Poll <-> PollOption (one-to-many)
+// ─────────────────────────────────────────────────────────────────────────────
 Poll.hasMany(PollOption, {
   as: 'options',
   foreignKey: 'pollId',
@@ -48,33 +58,95 @@ PollOption.belongsTo(Poll, {
   foreignKey: 'pollId',
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 // PollOption <-> Vote (one-to-many)
-PollOption.hasMany(Vote, { foreignKey: 'pollOptionId' });
-Vote.belongsTo(PollOption, { foreignKey: 'pollOptionId' });
+// ─────────────────────────────────────────────────────────────────────────────
+PollOption.hasMany(Vote, {
+  as: 'optionVotes',
+  foreignKey: 'pollOptionId',
+});
+Vote.belongsTo(PollOption, {
+  as: 'pollOption',
+  foreignKey: 'pollOptionId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // User <-> Vote (one-to-many)
-User.hasMany(Vote, { foreignKey: 'userId' });
-Vote.belongsTo(User, { foreignKey: 'userId' });
+// ─────────────────────────────────────────────────────────────────────────────
+User.hasMany(Vote, {
+  as: 'votes',
+  foreignKey: 'userId',
+});
+Vote.belongsTo(User, {
+  as: 'user',
+  foreignKey: 'userId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Poll <-> Comment (one-to-many)
-Poll.hasMany(Comment, { foreignKey: 'pollId' });
-Comment.belongsTo(Poll, { foreignKey: 'pollId' });
+// ─────────────────────────────────────────────────────────────────────────────
+Poll.hasMany(Comment, {
+  as: 'comments',
+  foreignKey: 'pollId',
+});
+Comment.belongsTo(Poll, {
+  as: 'poll',
+  foreignKey: 'pollId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // User <-> Comment (one-to-many)
-User.hasMany(Comment, { foreignKey: 'userId' });
-Comment.belongsTo(User, { foreignKey: 'userId' });
+// ─────────────────────────────────────────────────────────────────────────────
+User.hasMany(Comment, {
+  as: 'comments',
+  foreignKey: 'userId',
+});
+Comment.belongsTo(User, {
+  as: 'user',
+  foreignKey: 'userId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Poll <-> Category (many-to-many) via PollCategory
-Poll.belongsToMany(Category, { through: PollCategory, foreignKey: 'pollId' });
-Category.belongsToMany(Poll, { through: PollCategory, foreignKey: 'categoryId' });
+// ─────────────────────────────────────────────────────────────────────────────
+Poll.belongsToMany(Category, {
+  as: 'categories',
+  through: PollCategory,
+  foreignKey: 'pollId',
+});
+Category.belongsToMany(Poll, {
+  as: 'polls',
+  through: PollCategory,
+  foreignKey: 'categoryId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Poll <-> AllowedUsers (many-to-many) via PollAllowedUsers
-Poll.belongsToMany(User, { through: PollAllowedUsers, as: 'AllowedUsers', foreignKey: 'pollId' });
-User.belongsToMany(Poll, { through: PollAllowedUsers, as: 'ExclusivePolls', foreignKey: 'userId' });
+// ─────────────────────────────────────────────────────────────────────────────
+Poll.belongsToMany(User, {
+  as: 'allowedUsers',
+  through: PollAllowedUsers,
+  foreignKey: 'pollId',
+});
+User.belongsToMany(Poll, {
+  as: 'exclusivePolls',
+  through: PollAllowedUsers,
+  foreignKey: 'userId',
+});
 
+// ─────────────────────────────────────────────────────────────────────────────
 // User <-> User (self-referential many-to-many) via Follow
-User.belongsToMany(User, { as: 'Followers', through: Follow, foreignKey: 'followingId' });
-User.belongsToMany(User, { as: 'Following', through: Follow, foreignKey: 'followerId' });
+// ─────────────────────────────────────────────────────────────────────────────
+User.belongsToMany(User, {
+  as: 'followers',
+  through: Follow,
+  foreignKey: 'followingId',
+});
+User.belongsToMany(User, {
+  as: 'following',
+  through: Follow,
+  foreignKey: 'followerId',
+});
 
 // 5. Export the Sequelize instance and all models
 module.exports = {

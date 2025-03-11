@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef } from 'react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -41,7 +41,9 @@ const getTimeElapsed = (createdAt) => {
 const PollDetailsScreen = ({ route }) => {
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
-  const { pollId } = route.params;
+
+  // NEW: also read highlightCommentId if passed in
+  const { pollId, highlightCommentId } = route.params || {};
 
   // Global store data
   const polls = usePollsStore((state) => state.polls);
@@ -51,7 +53,7 @@ const PollDetailsScreen = ({ route }) => {
   // Local comment input
   const [commentText, setCommentText] = useState('');
 
-  // 1) Create a ref for FlatList
+  // A ref for FlatList
   const flatListRef = useRef(null);
 
   // Find the poll in the store
@@ -85,13 +87,29 @@ const PollDetailsScreen = ({ route }) => {
     setCommentText('');
 
     // 5) Scroll to the bottom so the new comment is visible
-    //    Use a small timeout to ensure the new comment is in the data
     setTimeout(() => {
       if (flatListRef.current && poll.comments.length > 0) {
         flatListRef.current.scrollToEnd({ animated: true });
       }
     }, 100);
   };
+
+  // NEW: useEffect to scroll & highlight a specific comment
+  useEffect(() => {
+    if (!poll || !poll.comments) return;
+    if (!highlightCommentId) return;
+
+    const idx = poll.comments.findIndex((c) => c.id === highlightCommentId);
+    if (idx > -1 && flatListRef.current) {
+      setTimeout(() => {
+        try {
+          flatListRef.current.scrollToIndex({ index: idx, animated: true });
+        } catch (err) {
+          console.warn('scrollToIndex error:', err);
+        }
+      }, 300);
+    }
+  }, [poll, highlightCommentId]);
 
   if (loading) {
     return (
@@ -140,13 +158,24 @@ const PollDetailsScreen = ({ route }) => {
         keyExtractor={(item, index) => (item?.id ? item.id.toString() : index.toString())}
         renderItem={({ item: comment }) => {
           if (!comment) return null;
-          const userPic = comment.User?.profilePicture || DEFAULT_PROFILE_IMG;
-          const username = comment.User?.username || 'Unknown';
+
+          // Decide if this comment is the highlighted one
+          const isHighlighted = highlightCommentId && comment.id === highlightCommentId;
+
+          const userPic = comment.user?.profilePicture || DEFAULT_PROFILE_IMG;
+          const username = comment.user?.username || 'Unknown';
 
           return (
             <View style={styles.commentItem}>
               <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
-              <View style={styles.commentContent}>
+
+              {/* NEW: highlight background on commentContent */}
+              <View
+                style={[
+                  styles.commentContent,
+                  isHighlighted && styles.highlightedComment, // override background
+                ]}
+              >
                 <View style={styles.commentHeader}>
                   <Text style={styles.commentUsername}>{username}</Text>
                   <Text style={styles.commentTimestamp}>
@@ -230,23 +259,30 @@ const styles = StyleSheet.create({
   commentsList: {
     flex: 1,
   },
+
   commentItem: {
     flexDirection: 'row',
     marginBottom: 12,
     paddingHorizontal: 16,
     marginTop: 8,
   },
+
+  commentContent: {
+    flex: 1,
+    backgroundColor: '#e4edf5',
+    borderRadius: 6,
+    padding: 8,
+  },
+
+  highlightedComment: {
+    backgroundColor: '#c5eefa',
+  },
+
   commentProfileImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
     marginRight: 8,
-  },
-  commentContent: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 6,
-    padding: 8,
   },
   commentHeader: {
     flexDirection: 'row',

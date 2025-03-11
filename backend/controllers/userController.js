@@ -34,24 +34,22 @@ exports.updateUserProfile = async (req, res, next) => {
   }
 };
 
-// GET /api/users/:id/polls - Retrieve all polls created by the user
+
+// GET /api/users/:id/polls
 exports.getUserPolls = async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id, 10);      // The profile owner
-    const requestingUserId = req.user?.id;          // The logged-in user from the token
+    const userId = parseInt(req.params.id, 10);
+    const requestingUserId = req.user?.id;
 
-    // 1) Fetch all polls from this user
     const polls = await Poll.findAll({
-      where: { userId }, // only polls belonging to userId
+      where: { userId },
       include: [
         {
-          // Attach the poll owner's user data
           model: User,
           as: 'user',
           attributes: ['id', 'username', 'profilePicture'],
         },
         {
-          // Attach poll options
           model: PollOption,
           as: 'options',
           attributes: ['id', 'optionText', 'votes', 'sortOrder'],
@@ -59,37 +57,34 @@ exports.getUserPolls = async (req, res, next) => {
           order: [['sortOrder', 'ASC']],
         },
         {
-          // Attach comments (so we can get commentCount)
+          // Attach comments using the correct alias
           model: Comment,
+          as: 'comments', // <-- THIS is critical
           attributes: ['id', 'commentText', 'createdAt'],
           include: [
-            { model: User, attributes: ['id', 'username', 'profilePicture'] }
+            { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
           ]
         },
       ],
-      order: [['createdAt', 'DESC']], // newest poll first
+      order: [['createdAt', 'DESC']],
     });
 
-    // 2) If there's a logged-in user, find their votes for these poll IDs
+    // (Optional) If the requesting user is logged in, find their votes:
     let userVotesByPollId = {};
     if (requestingUserId) {
-      const pollIds = polls.map((poll) => poll.id);
+      const pollIds = polls.map((p) => p.id);
       const userVotes = await Vote.findAll({
-        where: {
-          userId: requestingUserId,
-          pollId: pollIds,
-        },
+        where: { userId: requestingUserId, pollId: pollIds },
       });
-      // Build a quick lookup object: pollId -> pollOptionId
       userVotes.forEach((vote) => {
         userVotesByPollId[vote.pollId] = vote.pollOptionId;
       });
     }
 
-    // 3) Transform polls + attach userVote + commentCount
+    // Transform each poll if you want
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
-      const commentCount = poll.Comments?.length || 0;
+      const commentCount = poll.comments?.length || 0;
 
       return {
         id: poll.id,
@@ -100,26 +95,26 @@ exports.getUserPolls = async (req, res, next) => {
         userVote,
         user: poll.user
           ? {
-            id: poll.user.id,
-            username: poll.user.username,
-            profilePicture: poll.user.profilePicture,
-          }
+              id: poll.user.id,
+              username: poll.user.username,
+              profilePicture: poll.user.profilePicture,
+            }
           : null,
         options: poll.options.map((opt) => ({
           id: opt.id,
           text: opt.optionText,
           votes: opt.votes,
         })),
-        comments: (poll.Comments || []).map((c) => ({
+        comments: (poll.comments || []).map((c) => ({
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
-          User: c.User
+          User: c.user
             ? {
-              id: c.User.id,
-              username: c.User.username,
-              profilePicture: c.User.profilePicture
-            }
+                id: c.user.id,
+                username: c.user.username,
+                profilePicture: c.user.profilePicture,
+              }
             : null
         })),
       };
@@ -141,6 +136,7 @@ exports.getUserComments = async (req, res, next) => {
       include: [
         {
           model: Poll,
+          as: 'poll',
           attributes: ['id', 'question', 'createdAt'],
           // optionally also include poll's user if needed
           include: [

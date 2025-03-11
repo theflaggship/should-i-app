@@ -15,6 +15,7 @@ import { Settings, Trash2 } from 'react-native-feather';
 import colors from '../../styles/colors';
 import { AuthContext } from '../../context/AuthContext';
 import PollCard from '../../components/PollCard';
+import CommentCard from '../../components/CommentCard';
 import { sendVoteWS } from '../../services/pollService';
 
 // If you also want to fetch user comments or votes, import them:
@@ -25,7 +26,7 @@ import {
 
 
 import { usePollsStore } from '../../store/usePollsStore';
-import { deletePoll, updatePoll, /* sendVoteWS if you do it directly here */ } from '../../services/pollService';
+import { deletePoll, updatePoll } from '../../services/pollService';
 
 const { height } = Dimensions.get('window');
 
@@ -49,8 +50,10 @@ const ProfileScreen = ({ navigation }) => {
 
   // Local states for the other tabs
   const [comments, setComments] = useState([]);
+  const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
   const [votes, setVotes] = useState([]);
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
+  
 
   // For modals
   const menuModalRef = useRef(null);
@@ -88,7 +91,37 @@ const ProfileScreen = ({ navigation }) => {
     } else if (tab === TABS.COMMENTS) {
       try {
         const data = await getUserComments(user.id, token);
+        // 'data' is an array of comments from the backend
+        // Each comment has: { id, commentText, createdAt, poll: {...}, user: {...} }
         setComments(data);
+  
+        // Now group them by poll
+        const groupedMap = {};
+        data.forEach((comment) => {
+          const p = comment.poll; // if your alias is 'poll'
+          if (!p) return; // skip if no poll
+          if (!groupedMap[p.id]) {
+            groupedMap[p.id] = {
+              pollId: p.id,
+              poll: {
+                id: p.id,
+                question: p.question,
+                createdAt: p.createdAt,
+                user: p.user, // the poll owner's user object
+              },
+              userComments: [],
+            };
+          }
+          groupedMap[p.id].userComments.push({
+            id: comment.id,
+            text: comment.commentText,
+            createdAt: comment.createdAt,
+            // etc
+          });
+        });
+        const groupedArray = Object.values(groupedMap);
+        setCommentsGroupedByPoll(groupedArray);
+  
       } catch (err) {
         console.error('Fetching user comments error:', err);
       }
@@ -226,15 +259,13 @@ const ProfileScreen = ({ navigation }) => {
     } else if (selectedTab === TABS.COMMENTS) {
       return (
         <FlatList
-          data={comments}
-          keyExtractor={(item, idx) => String(idx)}
+          data={commentsGroupedByPoll}
+          keyExtractor={(item) => item.pollId.toString()}
           renderItem={({ item }) => (
-            <View style={styles.commentContainer}>
-              <Text style={styles.commentText}>
-                Commented on pollId: {item.pollId}
-              </Text>
-              <Text style={styles.commentText}>{item.commentText}</Text>
-            </View>
+            <CommentCard
+              poll={item.poll}                 // pass the poll object
+              userComments={item.userComments} // pass the array of user’s comments on that poll
+            />
           )}
           contentContainerStyle={{ paddingBottom: 16 }}
         />
@@ -353,8 +384,6 @@ const ProfileScreen = ({ navigation }) => {
       {/* Tab content */}
       <View style={styles.tabContent}>{renderTabContent()}</View>
 
-      {/* =============== The same modals from HomeScreen =============== */}
-      {/* 1) Main menu for ellipsis */}
       <Modalize
         ref={menuModalRef}
         withReactModal

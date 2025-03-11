@@ -1,6 +1,7 @@
-const { Comment } = require('../models');
+// controllers/commentController.js
+const { Comment, User } = require('../models');
 
-// POST /api/comments - Create a new comment
+// POST /api/comments
 exports.createComment = async (req, res, next) => {
   try {
     const { pollId, userId, commentText } = req.body;
@@ -11,14 +12,12 @@ exports.createComment = async (req, res, next) => {
   }
 };
 
-// PUT /api/comments/:id - Update a comment
+// PUT /api/comments/:id
 exports.updateComment = async (req, res, next) => {
   try {
     const comment = await Comment.findByPk(req.params.id);
     if (!comment) {
-      const err = new Error('Comment not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'Comment not found' });
     }
     await comment.update(req.body);
     res.status(200).json({ message: 'Comment updated', comment });
@@ -27,14 +26,12 @@ exports.updateComment = async (req, res, next) => {
   }
 };
 
-// DELETE /api/comments/:id - Delete a comment
+// DELETE /api/comments/:id
 exports.deleteComment = async (req, res, next) => {
   try {
     const comment = await Comment.findByPk(req.params.id);
     if (!comment) {
-      const err = new Error('Comment not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'Comment not found' });
     }
     await comment.destroy();
     res.status(200).json({ message: 'Comment deleted' });
@@ -43,16 +40,21 @@ exports.deleteComment = async (req, res, next) => {
   }
 };
 
-// GET /api/comments/poll/:pollId - Get all comments for a poll
+// GET /api/comments/poll/:pollId
 exports.getCommentsByPoll = async (req, res, next) => {
   try {
+    const pollId = req.params.pollId;
     const comments = await Comment.findAll({
-      where: { pollId: req.params.pollId },
-      include: {
-        model: User,
-        attributes: ['username', 'profilePicture']
-      },
-      order: [['createdAt', 'ASC']]
+      where: { pollId },
+      include: [
+        {
+          // must match Comment.belongsTo(User, { as: 'user' })
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'profilePicture'],
+        },
+      ],
+      order: [['createdAt', 'ASC']],
     });
     res.status(200).json(comments);
   } catch (error) {

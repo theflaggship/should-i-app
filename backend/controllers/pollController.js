@@ -1,13 +1,14 @@
+// controllers/pollController.js
 const { Poll, User, PollOption, Comment, Vote } = require('../models');
 
-// POST /api/polls - Create a new poll
+// POST /api/polls
 exports.createPoll = async (req, res, next) => {
   try {
-    const pollData = req.body
+    const pollData = req.body;
     const newPoll = await Poll.create(pollData);
 
     // If poll options are provided, create them
-    if (req.body.options && Array.isArray(req.body.options)) {
+    if (Array.isArray(req.body.options)) {
       const pollOptions = req.body.options.map((option, index) => ({
         pollId: newPoll.id,
         optionText: option.optionText,
@@ -21,119 +22,114 @@ exports.createPoll = async (req, res, next) => {
       where: { id: newPoll.id },
       include: [
         { model: User, as: 'user', attributes: ['id', 'username'] },
-        {
-          model: PollOption,
-          as: 'options',
-        },
+        { model: PollOption, as: 'options' },
       ],
     });
 
-    res.status(201).json({ message: 'Poll created successfully', poll: pollWithUserAndOptions });
+    res.status(201).json({
+      message: 'Poll created successfully',
+      poll: pollWithUserAndOptions,
+    });
   } catch (error) {
     next(error);
   }
 };
 
-// GET /api/polls - Retrieve all polls with comment count
+// GET /api/polls - Retrieve all polls
 exports.getAllPolls = async (req, res, next) => {
   try {
-    // 1) Identify user
     const userId = req.user?.id;
 
-    // 2) Fetch all polls (no changes here)
     const polls = await Poll.findAll({
       include: [
         {
           model: User,
-          as: 'user',
-          attributes: ['id', 'username', 'profilePicture']
+          as: 'user', // must match Poll.belongsTo(User, { as: 'user' })
+          attributes: ['id', 'username', 'profilePicture'],
         },
         {
           model: PollOption,
-          as: 'options',
+          as: 'options', // must match Poll.hasMany(PollOption, { as: 'options' })
           attributes: ['id', 'optionText', 'votes', 'sortOrder'],
-          separate: true,           // If you have multiple includes, 'separate' helps keep the sub-order
+          separate: true,
           order: [['sortOrder', 'ASC']],
         },
         {
           model: Comment,
+          as: 'comments', // must match Poll.hasMany(Comment, { as: 'comments' })
           attributes: ['id', 'commentText', 'createdAt'],
           include: [
-            { model: User, attributes: ['id', 'username', 'profilePicture'] }
-          ]
-        }
+            {
+              // must match Comment.belongsTo(User, { as: 'user' })
+              model: User,
+              as: 'user',
+              attributes: ['id', 'username', 'profilePicture'],
+            },
+          ],
+        },
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     });
 
-    // 3) If user is logged in, fetch all votes for these poll IDs in one go
+    // If user is logged in, find all votes for these poll IDs
     let userVotesByPollId = {};
     if (userId) {
-      const pollIds = polls.map((poll) => poll.id);
+      const pollIds = polls.map((p) => p.id);
       const userVotes = await Vote.findAll({
-        where: {
-          userId,
-          pollId: pollIds,
-        },
-        // attributes: ['pollId', 'pollOptionId'] if you only need those
+        where: { userId, pollId: pollIds },
       });
-
-      // Build a quick lookup object
       userVotes.forEach((vote) => {
         userVotesByPollId[vote.pollId] = vote.pollOptionId;
       });
     }
 
-    // 4) Transform polls + attach userVote
+    // Transform
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
-
       return {
         id: poll.id,
         question: poll.question,
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
-        commentCount: poll.Comments?.length || 0,
+        commentCount: poll.comments?.length || 0,
         userVote,
         user: poll.user
           ? {
-            id: poll.user.id,
-            username: poll.user.username,
-            profilePicture: poll.user.profilePicture,
-          }
+              id: poll.user.id,
+              username: poll.user.username,
+              profilePicture: poll.user.profilePicture,
+            }
           : null,
-        options: poll.options.map((opt) => ({
+        options: (poll.options || []).map((opt) => ({
           id: opt.id,
           text: opt.optionText,
           votes: opt.votes,
         })),
-        comments: poll.Comments.map((c) => ({
+        comments: (poll.comments || []).map((c) => ({
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
-          User: c.User
+          user: c.user
             ? {
-              id: c.User.id,
-              username: c.User.username,
-              profilePicture: c.User.profilePicture,
-            }
+                id: c.user.id,
+                username: c.user.username,
+                profilePicture: c.user.profilePicture,
+              }
             : null,
         })),
       };
     });
 
-    // 5) Send the array of polls
-    return res.status(200).json(data);
+    res.status(200).json(data);
   } catch (error) {
     next(error);
   }
 };
 
-// GET /api/polls/:id - Retrieve a specific poll by ID including comments
-// GET /api/polls/:id - Retrieve a specific poll by ID including comments
+// GET /api/polls/:id
 exports.getPollById = async (req, res, next) => {
   try {
-    const userId = req.user.id; // or req.query.userId
+    const userId = req.user?.id;
     const pollId = req.params.id;
 
     const poll = await Poll.findByPk(pollId, {
@@ -141,26 +137,28 @@ exports.getPollById = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture']
+          attributes: ['id', 'username', 'profilePicture'],
         },
         {
           model: PollOption,
           as: 'options',
           attributes: ['id', 'optionText', 'votes'],
-          separate: true,           // If you have multiple includes, 'separate' helps keep the sub-order
+          separate: true,
           order: [['sortOrder', 'ASC']],
         },
         {
           model: Comment,
-          attributes: ['id', 'commentText', 'createdAt', 'userId'], // Include createdAt so you can see it
+          as: 'comments',
+          attributes: ['id', 'commentText', 'createdAt', 'userId'],
           include: [
             {
               model: User,
-              attributes: ['id', 'username', 'profilePicture']
-            }
-          ]
-        }
-      ]
+              as: 'user',
+              attributes: ['id', 'username', 'profilePicture'],
+            },
+          ],
+        },
+      ],
     });
 
     if (!poll) {
@@ -173,71 +171,64 @@ exports.getPollById = async (req, res, next) => {
         where: { userId, pollId: poll.id },
       });
       if (existingVote) {
-        userVote = existingVote.pollOptionId; // the ID of the voted option
+        userVote = existingVote.pollOptionId;
       }
     }
 
-    // Construct the response
     res.status(200).json({
       id: poll.id,
       question: poll.question,
       createdAt: poll.createdAt,
       allowComments: poll.allowComments,
-      commentCount: poll.Comments?.length || 0,
-      user: poll.User
+      commentCount: poll.comments?.length || 0,
+      user: poll.user
         ? {
-          username: poll.User.username,
-          profilePicture: poll.User.profilePicture,
-        }
+            id: poll.user.id,
+            username: poll.user.username,
+            profilePicture: poll.user.profilePicture,
+          }
         : null,
       userVote,
-      options: poll.options.map((opt) => ({
+      options: (poll.options || []).map((opt) => ({
         id: opt.id,
-        text: opt.optionText, // rename so the frontend sees "text"
+        text: opt.optionText,
         votes: opt.votes,
       })),
-      comments: (poll.Comments || []).map((c) => ({
+      comments: (poll.comments || []).map((c) => ({
         id: c.id,
         text: c.commentText,
         createdAt: c.createdAt,
-        User: c.User
+        user: c.user
           ? {
-            id: c.User.id,
-            username: c.User.username,
-            profilePicture: c.User.profilePicture
-          }
-          : null
-      }))
+              id: c.user.id,
+              username: c.user.username,
+              profilePicture: c.user.profilePicture,
+            }
+          : null,
+      })),
     });
   } catch (error) {
     next(error);
   }
 };
 
-// PUT /api/polls/:id - Update a poll by ID
+// PUT /api/polls/:id
 exports.updatePoll = async (req, res, next) => {
   try {
     const poll = await Poll.findByPk(req.params.id);
     if (!poll) {
-      const err = new Error('Poll not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'Poll not found' });
     }
 
-    // 1) Update the Poll fields (question, allowComments, isPrivate, etc.)
     await poll.update({
       question: req.body.question,
       allowComments: req.body.allowComments,
       isPrivate: req.body.isPrivate,
-      // any other Poll columns
+      // any other Poll columns...
     });
 
-    // 2) If options are provided, replace old PollOptions
     if (Array.isArray(req.body.options)) {
-      // Remove old options for this poll
       await PollOption.destroy({ where: { pollId: poll.id } });
-
-      // Insert new options
       const newOptions = req.body.options.map((opt, index) => ({
         pollId: poll.id,
         optionText: opt.optionText,
@@ -247,10 +238,9 @@ exports.updatePoll = async (req, res, next) => {
       await PollOption.bulkCreate(newOptions);
     }
 
-    // 3) Re-query to include the updated poll with its new options
     const updatedPoll = await Poll.findOne({
       where: { id: poll.id },
-      include: [{ model: PollOption, as: 'options' }], // match your association alias
+      include: [{ model: PollOption, as: 'options' }],
     });
 
     res.status(200).json({
@@ -262,14 +252,12 @@ exports.updatePoll = async (req, res, next) => {
   }
 };
 
-// DELETE /api/polls/:id - Delete a poll by ID
+// DELETE /api/polls/:id
 exports.deletePoll = async (req, res, next) => {
   try {
     const poll = await Poll.findByPk(req.params.id);
     if (!poll) {
-      const err = new Error('Poll not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'Poll not found' });
     }
     await poll.destroy();
     res.status(200).json({ message: 'Poll deleted successfully' });

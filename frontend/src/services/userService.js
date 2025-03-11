@@ -21,3 +21,10 @@ export const getUserVotes = async (userId, token) => {
   });
   return response.data;
 };
+
+export const getUserStats = async (userId, token) => {
+  const response = await api.get(`/users/${userId}/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data; // { followers, following, totalPolls, totalVotes }
+};

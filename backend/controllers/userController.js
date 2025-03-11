@@ -1,5 +1,5 @@
 // userController.js
-const { User, Poll, Vote, Comment, PollOption } = require('../models');
+const { User, Poll, Vote, Comment, PollOption, Follow } = require('../models');
 
 // GET /api/users/:id - Retrieve a user profile (excluding password)
 exports.getUserProfile = async (req, res, next) => {
@@ -159,40 +159,153 @@ exports.getUserComments = async (req, res, next) => {
 };
 
 // GET /api/users/:id/votes - Retrieve all votes cast by the user
+// userController.js
 exports.getUserVotes = async (req, res, next) => {
   try {
-    const userId = req.params.id;
+    const userId = parseInt(req.params.id, 10);
+
+    // 1) Find all Votes by this user, newest first
     const votes = await Vote.findAll({
       where: { userId },
-      // We include the poll option, which itself includes the poll
+      order: [['createdAt', 'DESC']],    // newest to oldest by vote time
       include: [
         {
+          // Must match Vote.belongsTo(PollOption, { as: 'pollOption', ... })
           model: PollOption,
-          as: 'option',
-          attributes: ['id', 'optionText'],
+          as: 'pollOption',
+          attributes: ['id', 'optionText', 'votes', 'pollId'],
           include: [
             {
+              // Must match PollOption.belongsTo(Poll, { as: 'poll', ... })
               model: Poll,
               as: 'poll',
-              attributes: ['id', 'question', 'createdAt'],
-              // optionally also include poll's user if needed
+              attributes: ['id', 'question', 'createdAt', 'allowComments'],
               include: [
-                { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
-              ]
+                {
+                  // Must match Poll.belongsTo(User, { as: 'user', ... })
+                  model: User,
+                  as: 'user',
+                  attributes: ['id', 'username', 'profilePicture'],
+                },
+                {
+                  // Must match Poll.hasMany(PollOption, { as: 'options', ... })
+                  model: PollOption,
+                  as: 'options',
+                  attributes: ['id', 'optionText', 'votes', 'sortOrder'],
+                },
+                {
+                  // Must match Poll.hasMany(Comment, { as: 'comments', ... })
+                  model: Comment,
+                  as: 'comments',
+                  attributes: ['id', 'commentText', 'createdAt'],
+                  include: [
+                    {
+                      model: User,
+                      as: 'user',
+                      attributes: ['id', 'username', 'profilePicture'],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
         {
+          // Must match Vote.belongsTo(User, { as: 'user', ... })
           model: User,
           as: 'user',
           attributes: ['id', 'username', 'profilePicture'],
         },
       ],
-      order: [['createdAt', 'DESC']],
     });
 
-    res.status(200).json(votes);
+    // 2) Transform each vote into a Poll object shape that your <PollCard> expects
+    //    We do one Poll per Vote. If a user has multiple votes on the same Poll
+    //    you might see duplicates, or you can deduplicate if you prefer.
+    const results = votes.map((vote) => {
+      const pollOpt = vote.pollOption;
+      if (!pollOpt) return null;
+      const poll = pollOpt.poll;
+      if (!poll) return null;
+
+      // Build "userVote" from the PollOption ID
+      const userVote = pollOpt.id;
+      const totalVotes = (poll.options || []).reduce(
+        (acc, opt) => acc + (opt.votes || 0),
+        0
+      );
+      const commentCount = (poll.comments || []).length;
+
+      return {
+        id: poll.id,
+        question: poll.question,
+        createdAt: poll.createdAt,
+        allowComments: poll.allowComments,
+        commentCount,
+        userVote, // The option the user voted for
+        user: poll.user
+          ? {
+              id: poll.user.id,
+              username: poll.user.username,
+              profilePicture: poll.user.profilePicture,
+            }
+          : null,
+        options: (poll.options || []).map((opt) => ({
+          id: opt.id,
+          text: opt.optionText,
+          votes: opt.votes,
+        })),
+        comments: (poll.comments || []).map((c) => ({
+          id: c.id,
+          text: c.commentText,
+          createdAt: c.createdAt,
+          user: c.user
+            ? {
+                id: c.user.id,
+                username: c.user.username,
+                profilePicture: c.user.profilePicture,
+              }
+            : null,
+        })),
+      };
+    }).filter(Boolean);
+
+    return res.status(200).json(results);
   } catch (error) {
     next(error);
   }
 };
+
+// GET /api/users/:id/stats
+exports.getUserStats = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+
+    // 1) Ensure the user exists (optional, but recommended)
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // 2) Count total polls
+    const totalPolls = await Poll.count({ where: { userId } });
+
+    // 3) Count total votes
+    const totalVotes = await Vote.count({ where: { userId } });
+
+    // 4) Count followers & following
+    const followers = await Follow.count({ where: { followingId: userId } });
+    const following = await Follow.count({ where: { followerId: userId } });
+
+    // 5) Return stats
+    return res.status(200).json({
+      followers,
+      following,
+      totalPolls,
+      totalVotes,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

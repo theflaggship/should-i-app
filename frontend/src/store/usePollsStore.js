@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { getPolls, connectVoteSocket, connectCommentSocket } from '../services/pollService';
 import { getUserPolls } from '../services/userService';
+import { useUserStatsStore } from './useUserStatsStore'; // <-- ADDED
 
 export const usePollsStore = create((set, get) => ({
   polls: [],
@@ -83,7 +84,8 @@ export const usePollsStore = create((set, get) => ({
   // 4) updatePollState: called by the Vote WebSocket or manually
   //    This updates both `polls` and `userPolls`
   // ─────────────────────────────────────────────────────────────────────────────
-  updatePollState: (pollId, userVote, updatedOptions) => {
+  updatePollState: (pollId, userVote, updatedOptions, userId, token) => { 
+    // <-- CHANGED: optionally accept userId, token to refresh stats
     set((state) => {
       if (!pollId || !updatedOptions) {
         return { polls: state.polls, userPolls: state.userPolls };
@@ -136,6 +138,11 @@ export const usePollsStore = create((set, get) => ({
         userPolls: newUserPolls,
       };
     });
+
+    // After updating the polls, optionally refresh user stats
+    if (userId && token) {
+      useUserStatsStore.getState().fetchStats(userId, token);
+    }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -155,7 +162,7 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 6) Update comment state in main feed (you can also add userPolls logic)
+  // 6) Update comment state in main feed
   // ─────────────────────────────────────────────────────────────────────────────
   updateCommentState: (pollId, newComment) => {
     set((state) => {
@@ -194,9 +201,6 @@ export const usePollsStore = create((set, get) => ({
         };
       });
 
-      // (Optional) If you want to do the same for userPolls:
-      // const newUserPolls = ...
-
       return { polls: newPolls };
     });
   },
@@ -204,8 +208,8 @@ export const usePollsStore = create((set, get) => ({
   // ─────────────────────────────────────────────────────────────────────────────
   // 7) Add a newly created poll to the main feed
   // ─────────────────────────────────────────────────────────────────────────────
-  addPollToStore: (newPoll) => {
-    // If newPoll has a capital "User" property, rename it to "user"
+  addPollToStore: (newPoll, userId, token) => { 
+    // <-- CHANGED: accept userId, token to refresh stats if needed
     if (newPoll.User && !newPoll.user) {
       newPoll.user = newPoll.User;
       delete newPoll.User;
@@ -213,15 +217,26 @@ export const usePollsStore = create((set, get) => ({
     set((state) => ({
       polls: [newPoll, ...state.polls],
     }));
+
+    // Optionally refresh stats after creating a poll
+    if (userId && token) {
+      useUserStatsStore.getState().fetchStats(userId, token);
+    }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 8) Remove poll from main feed
   // ─────────────────────────────────────────────────────────────────────────────
-  removePoll: (pollId) => {
+  removePoll: (pollId, userId, token) => { 
+    // <-- CHANGED: accept userId, token to refresh stats if needed
     set((state) => ({
       polls: state.polls.filter((p) => p.id !== pollId),
     }));
+
+    // Optionally refresh stats after deleting a poll
+    if (userId && token) {
+      useUserStatsStore.getState().fetchStats(userId, token);
+    }
   },
 
   // If you want a simpler update just for main feed
@@ -241,13 +256,13 @@ export const usePollsStore = create((set, get) => ({
   // ─────────────────────────────────────────────────────────────────────────────
   // 9) Initialize store with websockets
   // ─────────────────────────────────────────────────────────────────────────────
-  initPolls: (token) => {
+  initPolls: (token, userId) => { // <-- CHANGED: accept userId to refresh stats
     get().fetchAllPolls(token);
 
     // Vote socket
     connectVoteSocket((pollId, userVote, options) => {
-      // The same function that updates both arrays
-      get().updatePollState(pollId, userVote, options);
+      // pass userId/token so updatePollState can refresh stats
+      get().updatePollState(pollId, userVote, options, userId, token);
     });
 
     // Comment socket

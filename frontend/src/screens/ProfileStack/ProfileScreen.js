@@ -17,72 +17,111 @@ import { AuthContext } from '../../context/AuthContext';
 import PollCard from '../../components/PollCard';
 import CommentCard from '../../components/CommentCard';
 import { sendVoteWS } from '../../services/pollService';
-import { getUserComments, getUserVotes } from '../../services/userService';
+import {
+  getUserComments,
+  getUserVotes,
+  getUserStats,   // <-- NEW import
+} from '../../services/userService';
 import { usePollsStore } from '../../store/usePollsStore';
 import { deletePoll, updatePoll } from '../../services/pollService';
 
 const { height } = Dimensions.get('window');
 
+// We re-order TABS: POLLS -> VOTES -> COMMENTS
 const TABS = {
   POLLS: 'POLLS',
-  COMMENTS: 'COMMENTS',
   VOTES: 'VOTES',
+  COMMENTS: 'COMMENTS',
 };
 
 const ProfileScreen = ({ navigation }) => {
   const { user, token } = useContext(AuthContext);
 
-  // Access userPolls from the store
+  // 1) Store for user’s own polls
   const userPolls = usePollsStore((state) => state.userPolls);
   const fetchUserPolls = usePollsStore((state) => state.fetchUserPolls);
   const updateUserPollInStore = usePollsStore((state) => state.updateUserPollInStore);
 
-  // Store loading/error
+  // 2) Global loading/error from store
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
-  // Local states for the other tabs
+  // 3) Local states
   const [comments, setComments] = useState([]);
   const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
   const [votes, setVotes] = useState([]);
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
 
-  // For modals
+  // 4) Stats
+  const [stats, setStats] = useState({
+    followers: 0,
+    following: 0,
+    totalPolls: 0,
+    totalVotes: 0,
+  });
+
+  // 5) Modals
   const menuModalRef = useRef(null);
   const editModalRef = useRef(null);
   const deleteConfirmModalRef = useRef(null);
   const fullEditModalRef = useRef(null);
 
-  // Track which poll is selected
+  // 6) Track poll for modals
   const [selectedPoll, setSelectedPoll] = useState(null);
-
-  // Toggles + question + options for editing
   const [tempAllowComments, setTempAllowComments] = useState(false);
   const [tempIsPrivate, setTempIsPrivate] = useState(false);
   const [tempQuestion, setTempQuestion] = useState('');
   const [tempOptions, setTempOptions] = useState([]);
 
-  // On mount, fetch the user's polls
+  // ─────────────────────────────────────────────────────────────────────────────
+  // On mount: fetch user’s polls & stats
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // 1) Polls
     fetchUserPolls(token, user.id);
+
+    // 2) Stats
+    const fetchStats = async () => {
+      try {
+        const data = await getUserStats(user.id, token);
+        setStats(data);
+      } catch (err) {
+        console.error('Fetching user stats error:', err);
+      }
+    };
+    fetchStats();
   }, [token, user.id]);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Voting
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleVote = (pollId, optionId) => {
     if (!user?.id) return;
     sendVoteWS(user.id, pollId, optionId);
   };
 
-  // Switch tabs
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Tab Switching
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
     if (tab === TABS.POLLS) {
       fetchUserPolls(token, user.id);
+    } else if (tab === TABS.VOTES) {
+      // fetch user’s voted polls
+      try {
+        const data = await getUserVotes(user.id, token);
+        setVotes(data);
+      } catch (err) {
+        console.error('Fetching user votes error:', err);
+      }
     } else if (tab === TABS.COMMENTS) {
+      // fetch user’s comments
       try {
         const data = await getUserComments(user.id, token);
         setComments(data);
 
-        // Group them by poll
+        // group them by poll
         const groupedMap = {};
         data.forEach((comment) => {
           const p = comment.poll;
@@ -105,22 +144,16 @@ const ProfileScreen = ({ navigation }) => {
             createdAt: comment.createdAt,
           });
         });
-        const groupedArray = Object.values(groupedMap);
-        setCommentsGroupedByPoll(groupedArray);
+        setCommentsGroupedByPoll(Object.values(groupedMap));
       } catch (err) {
         console.error('Fetching user comments error:', err);
-      }
-    } else if (tab === TABS.VOTES) {
-      try {
-        const data = await getUserVotes(user.id, token);
-        setVotes(data);
-      } catch (err) {
-        console.error('Fetching user votes error:', err);
       }
     }
   };
 
-  // Ellipsis + modals
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Ellipsis & modals
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleOpenMenu = (poll) => {
     setSelectedPoll(poll);
     setTempAllowComments(poll.allowComments);
@@ -135,9 +168,7 @@ const ProfileScreen = ({ navigation }) => {
     setTimeout(() => {
       if (option === 'delete') {
         deleteConfirmModalRef.current?.open();
-        return;
-      }
-      if (option === 'edit') {
+      } else if (option === 'edit') {
         fullEditModalRef.current?.open();
       } else if (option === 'interaction') {
         editModalRef.current?.open();
@@ -210,22 +241,19 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // Render tab content
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render Tab Content
+  // ─────────────────────────────────────────────────────────────────────────────
   const renderTabContent = () => {
     if (loading) {
-      return (
-        <ActivityIndicator
-          style={{ marginTop: 20 }}
-          color={colors.primary}
-          size="large"
-        />
-      );
+      return <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} size="large" />;
     }
     if (error) {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
     if (selectedTab === TABS.POLLS) {
+      // The user's own polls
       return (
         <FlatList
           data={userPolls}
@@ -236,7 +264,20 @@ const ProfileScreen = ({ navigation }) => {
           contentContainerStyle={{ paddingBottom: 16 }}
         />
       );
+    } else if (selectedTab === TABS.VOTES) {
+      // The polls the user has voted on
+      return (
+        <FlatList
+          data={votes} // array of poll objects
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <PollCard poll={item} onVote={handleVote} onOpenMenu={handleOpenMenu} />
+          )}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
+      );
     } else if (selectedTab === TABS.COMMENTS) {
+      // The user's comments, grouped by poll
       return (
         <FlatList
           data={commentsGroupedByPoll}
@@ -247,36 +288,18 @@ const ProfileScreen = ({ navigation }) => {
           contentContainerStyle={{ paddingBottom: 16 }}
         />
       );
-    } else if (selectedTab === TABS.VOTES) {
-      return (
-        <FlatList
-          data={votes}
-          keyExtractor={(item, idx) => String(idx)}
-          renderItem={({ item }) => (
-            <View style={styles.commentContainer}>
-              <Text style={styles.commentText}>
-                Voted pollId: {item.pollId}
-              </Text>
-              <Text style={styles.commentText}>
-                optionId: {item.pollOptionId}
-              </Text>
-            </View>
-          )}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
     }
     return null;
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Main Render
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       {/* 
-        Updated arrangement:
-        - Profile pic 100x100 at top-left
-        - Edit Profile button on the right side, center-aligned with the bottom of the pic
-        - Username below pic, summary below that
-        - Stats row at bottom of this header, above tabs
+        Profile header with stats 
+        (We’re using the local "stats" object from getUserStats)
       */}
       <View style={styles.profileHeader}>
         <View style={styles.picContainer}>
@@ -299,30 +322,28 @@ const ProfileScreen = ({ navigation }) => {
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.followers}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.following}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.totalPolls}</Text>
             <Text style={styles.statLabel}>Polls</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.totalVotes}</Text>
             <Text style={styles.statLabel}>Total Votes</Text>
           </View>
         </View>
       </View>
 
+      {/* Tabs row */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
-          style={[
-            styles.tabButton,
-            selectedTab === TABS.POLLS && styles.activeTabButton,
-          ]}
+          style={[styles.tabButton, selectedTab === TABS.POLLS && styles.activeTabButton]}
           onPress={() => handleTabPress(TABS.POLLS)}
         >
           <Text
@@ -336,27 +357,7 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.tabButton,
-            selectedTab === TABS.COMMENTS && styles.activeTabButton,
-          ]}
-          onPress={() => handleTabPress(TABS.COMMENTS)}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              selectedTab === TABS.COMMENTS && styles.activeTabButtonText,
-            ]}
-          >
-            Comments
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            selectedTab === TABS.VOTES && styles.activeTabButton,
-          ]}
+          style={[styles.tabButton, selectedTab === TABS.VOTES && styles.activeTabButton]}
           onPress={() => handleTabPress(TABS.VOTES)}
         >
           <Text
@@ -368,11 +369,26 @@ const ProfileScreen = ({ navigation }) => {
             Votes
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabButton, selectedTab === TABS.COMMENTS && styles.activeTabButton]}
+          onPress={() => handleTabPress(TABS.COMMENTS)}
+        >
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === TABS.COMMENTS && styles.activeTabButtonText,
+            ]}
+          >
+            Comments
+          </Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Tab content */}
       <View style={styles.tabContent}>{renderTabContent()}</View>
 
-      {/* ======== The same modals from your existing code ======== */}
+      {/* =============== The same modals =============== */}
       <Modalize
         ref={menuModalRef}
         withReactModal
@@ -399,6 +415,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </Modalize>
 
+      {/* Edit Interaction Settings */}
       <Modalize
         ref={editModalRef}
         withReactModal
@@ -422,6 +439,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </Modalize>
 
+      {/* Full Edit Poll */}
       <Modalize
         ref={fullEditModalRef}
         withReactModal
@@ -438,6 +456,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </Modalize>
 
+      {/* Delete Poll Confirm */}
       <Modalize
         ref={deleteConfirmModalRef}
         withReactModal
@@ -470,6 +489,7 @@ const ProfileScreen = ({ navigation }) => {
 
 export default ProfileScreen;
 
+// -------------------- STYLES --------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -492,11 +512,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
   },
-  // Now the button is on the right side, bottom of the pic
   editButton: {
     position: 'absolute',
     right: 0,
-    bottom: 0, // Adjust as needed for perfect alignment
+    bottom: 0,
     backgroundColor: '#21D0B2',
     borderRadius: 20,
     paddingHorizontal: 15,
@@ -522,7 +541,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 2,
   },
-
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -570,6 +588,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
 
+  // For the Comments / Votes fallback
   commentContainer: {
     backgroundColor: '#f5f5f5',
     borderRadius: 6,
@@ -582,6 +601,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
 
+  // Modals
   menuModalContent: {
     padding: 25,
   },
@@ -601,7 +621,6 @@ const styles = StyleSheet.create({
     color: colors.light,
     fontSize: 16,
   },
-
   editModalContent: {
     padding: 25,
   },

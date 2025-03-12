@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  Animated,  // <-- import Animated
+  Animated,
   Easing,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -16,8 +16,7 @@ import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
-// Helpers
-const getTimeElapsed = (createdAt) => {
+function getTimeElapsed(createdAt) {
   if (!createdAt) return '';
   const date = new Date(createdAt);
   const now = new Date();
@@ -33,13 +32,13 @@ const getTimeElapsed = (createdAt) => {
   if (diffInMonths < 12) return `${diffInMonths}mo`;
   const diffInYears = Math.floor(diffInMonths / 12);
   return `${diffInYears}y`;
-};
+}
 
-const formatDetailedDate = (createdAt) => {
+function formatDetailedDate(createdAt) {
   if (!createdAt) return '';
   const dateObj = new Date(createdAt);
   const options = {
-    month: 'long', 
+    month: 'long',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
@@ -50,7 +49,7 @@ const formatDetailedDate = (createdAt) => {
   formatted = formatted.replace(',', '');
   formatted = formatted.replace(',', ' at');
   return formatted;
-};
+}
 
 const PollCard = ({
   poll,
@@ -70,68 +69,111 @@ const PollCard = ({
     );
   }
 
-  // Unify poll.user vs. poll.User
-  const finalUser = poll.user || poll.User;
-  const isOwner = finalUser?.id === user?.id;
+  // Safely unify user objects
+  const finalUser = poll.user || poll.User || {};
+  const isOwner = finalUser.id === user?.id;
 
-  const userVote = poll.userVote;   
+  const userVote = poll.userVote;
   const pollOptions = poll.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
 
-  // If poll is owned by the user => always show fill bar. Otherwise => show fill bar only if userVote != null.
+  // Show fill bar if:
+  //  - user is poll owner, or
+  //  - user has voted (userVote != null)
   const showFillBarAndPercent = isOwner || userVote !== null;
 
-  // ----------------------------------------------------------------
-  // ANIMATION LOGIC (for non-owners only)
-  // ----------------------------------------------------------------
-  // We store an Animated.Value for each option. 
-  // This will let us animate from oldWidth% to newWidth% in 1 second.
+  // We'll store an Animated.Value for each poll option
   const [fillAnims, setFillAnims] = useState(() =>
     pollOptions.map(() => new Animated.Value(0))
   );
 
-  // If the poll options array length changes (rare, but can happen if poll is edited),
-  // re-initialize the array. 
+  // Keep track of the previous votes array so we only animate if votes changed
+  const prevVotesRef = useRef([]);
+
+  // If the poll options array length changes, re-init
   useEffect(() => {
     if (fillAnims.length !== pollOptions.length) {
       setFillAnims(pollOptions.map(() => new Animated.Value(0)));
+      prevVotesRef.current = pollOptions.map(opt => opt.votes || 0);
     }
-    // We only re-init if lengths differ. Otherwise we keep them so we can animate from old to new.
   }, [pollOptions, fillAnims]);
 
-  // Animate whenever pollOptions, totalVotes, or userVote changes, but only if not the owner.
+  // Animate only if votes changed (and user is not owner, and user has voted)
   useEffect(() => {
+    // If owner => skip animations => snap to final
     if (isOwner) {
-      // If owner => skip animations, just snap to final
       pollOptions.forEach((opt, i) => {
-        const rawPercent = totalVotes === 0 ? 0 : Math.round((opt.votes / totalVotes) * 100);
-        fillAnims[i].setValue(rawPercent); // instantly set
+        const rawPercent = totalVotes === 0
+          ? 0
+          : Math.round((opt.votes || 0) / totalVotes * 100);
+        fillAnims[i].setValue(rawPercent);
       });
+      prevVotesRef.current = pollOptions.map(opt => opt.votes || 0);
       return;
     }
 
-    // If not owner => animate from old to new
-    pollOptions.forEach((opt, i) => {
-      const rawPercent = totalVotes === 0 ? 0 : Math.round((opt.votes / totalVotes) * 100);
-      const finalValue = showFillBarAndPercent ? rawPercent : 0;
+    // If user hasn't voted => fill bars = 0, no animation
+    if (userVote == null) {
+      pollOptions.forEach((_, i) => {
+        fillAnims[i].setValue(0);
+      });
+      prevVotesRef.current = pollOptions.map(opt => opt.votes || 0);
+      return;
+    }
 
-      Animated.timing(fillAnims[i], {
-        toValue: finalValue,
-        duration: 700,           // 700 ms
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: false,   // width animation requires layout, so no driver
-      }).start();
-    });
-  }, [pollOptions, totalVotes, userVote, showFillBarAndPercent, isOwner, fillAnims]);
+    // Compare old vs new
+    const oldVotes = prevVotesRef.current;
+    const newVotes = pollOptions.map(opt => opt.votes || 0);
 
-  // ----------------------------------------------------------------
-  // HANDLERS
-  // ----------------------------------------------------------------
+    let changed = false;
+    if (oldVotes.length === newVotes.length) {
+      for (let i = 0; i < newVotes.length; i++) {
+        if (newVotes[i] !== oldVotes[i]) {
+          changed = true;
+          break;
+        }
+      }
+    } else {
+      changed = true;
+    }
+
+    if (changed) {
+      // Animate from old -> new
+      pollOptions.forEach((opt, i) => {
+        const rawPercent = totalVotes === 0
+          ? 0
+          : Math.round((opt.votes || 0) / totalVotes * 100);
+
+        Animated.timing(fillAnims[i], {
+          toValue: showFillBarAndPercent ? rawPercent : 0,
+          duration: 700,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }).start();
+      });
+    } else {
+      // No change => just snap
+      pollOptions.forEach((opt, i) => {
+        const rawPercent = totalVotes === 0
+          ? 0
+          : Math.round((opt.votes || 0) / totalVotes * 100);
+        fillAnims[i].setValue(showFillBarAndPercent ? rawPercent : 0);
+      });
+    }
+
+    // Update previous
+    prevVotesRef.current = newVotes;
+  }, [pollOptions, totalVotes, userVote, isOwner, showFillBarAndPercent, fillAnims]);
+
   const handleOptionPress = (optionId) => {
+    // If user is not logged in, do nothing
     if (!user?.id) return;
+
+    // If parent provided an onVote callback, use it
     if (onVote) {
       onVote(poll.id, optionId);
     } else {
+      // Otherwise fallback to direct WS
       sendVoteWS(user.id, poll.id, optionId);
     }
   };
@@ -142,9 +184,6 @@ const PollCard = ({
     }
   };
 
-  // ----------------------------------------------------------------
-  // RENDER
-  // ----------------------------------------------------------------
   return (
     <View style={styles.card}>
       {/* Header row */}
@@ -159,10 +198,12 @@ const PollCard = ({
           pointerEvents="box-only"
         >
           <Image
-            source={{ uri: finalUser?.profilePicture || DEFAULT_PROFILE_IMG }}
+            source={{ uri: finalUser.profilePicture || DEFAULT_PROFILE_IMG }}
             style={styles.profileImage}
           />
-          <Text style={styles.username}>{finalUser?.username ?? 'Unknown'}</Text>
+          <Text style={styles.username}>
+            {finalUser.username ?? 'Unknown'}
+          </Text>
         </TouchableOpacity>
 
         {!showDetailedTimestamp && (
@@ -171,45 +212,48 @@ const PollCard = ({
             onPress={handleNavigateToDetails}
             activeOpacity={0.8}
           >
-            <Text style={styles.timestamp}>{getTimeElapsed(poll.createdAt)}</Text>
+            <Text style={styles.timestamp}>
+              {getTimeElapsed(poll.createdAt)}
+            </Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
 
-      {/* Body: question + poll options */}
+      {/* Main body: question + poll options */}
       <TouchableOpacity
         activeOpacity={0.8}
         disabled={disableMainPress}
         onPress={handleNavigateToDetails}
         style={styles.mainBody}
       >
-        <Text style={styles.question}>{poll.question ?? 'No question'}</Text>
+        <Text style={styles.question}>{poll.question || 'No question'}</Text>
 
         <View style={styles.optionsContainer}>
           {pollOptions.map((option, index) => {
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
-            const rawPercent =
-              totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
+            const rawPercent = totalVotes === 0
+              ? 0
+              : Math.round((votes / totalVotes) * 100);
 
-            // If the user is the owner => no animation => just use rawPercent
-            // If not owner => use fillAnims
+            // If owner => skip animation => just rawPercent
+            // Otherwise => use fillAnims
             let fillWidthStyle;
             if (isOwner) {
-              const fillWidth = showFillBarAndPercent ? `${rawPercent}%` : '0%';
-              fillWidthStyle = { width: fillWidth };
-            } else {
-              // Use interpolation from fillAnims
-              const fillAnim = fillAnims[index];
               fillWidthStyle = {
-                width: fillAnim.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ['0%', '100%'],
-                }),
+                width: showFillBarAndPercent ? `${rawPercent}%` : '0%',
+              };
+            } else {
+              fillWidthStyle = {
+                width: showFillBarAndPercent
+                  ? fillAnims[index].interpolate({
+                      inputRange: [0, 100],
+                      outputRange: ['0%', '100%'],
+                    })
+                  : '0%',
               };
             }
 
-            // If 100% => round corners both sides
             const fillBarDynamicRadius =
               rawPercent === 100
                 ? {
@@ -237,7 +281,7 @@ const PollCard = ({
                 onPress={() => handleOptionPress(option.id)}
                 activeOpacity={0.8}
               >
-                {/* Fill Bar */}
+                {/* Animated fill bar */}
                 <Animated.View
                   style={[
                     styles.fillBar,
@@ -245,7 +289,7 @@ const PollCard = ({
                     {
                       backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
                     },
-                    fillWidthStyle, // animated or static
+                    fillWidthStyle,
                   ]}
                 />
 
@@ -287,12 +331,14 @@ const PollCard = ({
           </Text>
         )}
 
-        {/* Footer row: comments, total votes, etc. */}
+        {/* Footer row */}
         <View style={styles.bottomRow}>
           {poll.allowComments && (
             <View style={styles.commentContainer}>
               <MessageCircle width={18} color="gray" style={styles.commentIcon} />
-              <Text style={styles.commentCount}>{poll.commentCount || 0}</Text>
+              <Text style={styles.commentCount}>
+                {poll.commentCount || 0}
+              </Text>
             </View>
           )}
 
@@ -305,7 +351,7 @@ const PollCard = ({
             <Text style={styles.voteCount}>{totalVotes}</Text>
           </View>
 
-          {/* Ellipsis if poll belongs to user */}
+          {/* Ellipsis if user is the poll owner */}
           {isOwner && onOpenMenu && (
             <TouchableOpacity
               style={styles.ellipsisButton}

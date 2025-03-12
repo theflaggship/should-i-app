@@ -1,23 +1,24 @@
 // usePollsStore.js
 import { create } from 'zustand';
 import { getPolls, connectVoteSocket, connectCommentSocket } from '../services/pollService';
-import { getUserPolls } from '../services/userService';
+import { getUserPolls, getUserVotes } from '../services/userService';
 import { useUserStatsStore } from './useUserStatsStore'; // <-- ADDED
 
 export const usePollsStore = create((set, get) => ({
   polls: [],
   userPolls: [],
+  votedPolls: [],
   loading: false,
   error: null,
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1) Fetch all polls (main feed)
+  // Fetch all polls (main feed)
   // ─────────────────────────────────────────────────────────────────────────────
   fetchAllPolls: async (token) => {
     set({ loading: true, error: null });
     try {
       const data = await getPolls(token);
-      // Sort comments in each poll by ascending createdAt
+      // Sort comments in each poll by ascending createdAt, etc.
       data.forEach((poll) => {
         if (Array.isArray(poll.comments)) {
           poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -32,13 +33,18 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2) Fetch user’s own polls (for Profile)
+  // Fetch the user’s own polls (Profile → Polls tab)
   // ─────────────────────────────────────────────────────────────────────────────
   fetchUserPolls: async (token, userId) => {
     set({ loading: true, error: null });
     try {
       const data = await getUserPolls(userId, token);
-      // Optionally sort or transform here
+      // Sort each poll’s options if you want
+      data.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
       set({ userPolls: data });
     } catch (err) {
       set({ error: err.message || 'Something went wrong' });
@@ -48,7 +54,28 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 3) A helper if you want to update poll in both arrays at once
+  // Fetch the user’s voted polls (Profile → Votes tab)
+  // ─────────────────────────────────────────────────────────────────────────────
+  fetchUserVotedPolls: async (token, userId) => {
+    set({ loading: true, error: null });
+    try {
+      let data = await getUserVotes(userId, token);
+      // Optionally sort each poll’s options by sortOrder
+      data.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+      set({ votedPolls: data }); // <--- store them in zustand
+    } catch (err) {
+      set({ error: err.message || 'Something went wrong' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // A helper if you want to update poll in both arrays at once
   // ─────────────────────────────────────────────────────────────────────────────
   updatePollInBoth: (pollId, partialData) => {
     set((state) => {
@@ -81,72 +108,51 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 4) updatePollState: called by the Vote WebSocket or manually
+  // updatePollState: called by the Vote WebSocket or manually
   //    This updates both `polls` and `userPolls`
   // ─────────────────────────────────────────────────────────────────────────────
-  updatePollState: (pollId, userVote, updatedOptions, userId, token) => { 
-    // <-- CHANGED: optionally accept userId, token to refresh stats
+  updatePollState: (pollId, userVote, updatedOptions, userId, token) => {
     set((state) => {
       if (!pollId || !updatedOptions) {
-        return { polls: state.polls, userPolls: state.userPolls };
+        return { polls: state.polls, userPolls: state.userPolls, votedPolls: state.votedPolls };
       }
 
-      // Update the main feed (polls)
+      // 1) Update the main feed
       const newPolls = state.polls.map((p) => {
         if (p.id !== pollId) return p;
-
-        const mergedOptions = p.options.map((oldOpt) => {
-          const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
-          if (!newOpt) return oldOpt;
-          return {
-            ...oldOpt,
-            text: newOpt.text ?? oldOpt.text,
-            votes: newOpt.votes,
-          };
-        });
-
-        return {
-          ...p,
-          options: mergedOptions,
-          userVote: userVote ?? null,
-        };
+        const mergedOptions = mergeOptions(p.options, updatedOptions);
+        return { ...p, options: mergedOptions, userVote: userVote ?? null };
       });
 
-      // Update the userPolls (profile feed)
+      // 2) Update the userPolls
       const newUserPolls = state.userPolls.map((p) => {
         if (p.id !== pollId) return p;
+        const mergedOptions = mergeOptions(p.options, updatedOptions);
+        return { ...p, options: mergedOptions, userVote: userVote ?? null };
+      });
 
-        const mergedOptions = p.options.map((oldOpt) => {
-          const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
-          if (!newOpt) return oldOpt;
-          return {
-            ...oldOpt,
-            text: newOpt.text ?? oldOpt.text,
-            votes: newOpt.votes,
-          };
-        });
-
-        return {
-          ...p,
-          options: mergedOptions,
-          userVote: userVote ?? null,
-        };
+      // 3) Update the votedPolls
+      const newVotedPolls = state.votedPolls.map((p) => {
+        if (p.id !== pollId) return p;
+        const mergedOptions = mergeOptions(p.options, updatedOptions);
+        return { ...p, options: mergedOptions, userVote: userVote ?? null };
       });
 
       return {
         polls: newPolls,
         userPolls: newUserPolls,
+        votedPolls: newVotedPolls,
       };
     });
 
-    // After updating the polls, optionally refresh user stats
+    // Optionally refresh user stats
     if (userId && token) {
       useUserStatsStore.getState().fetchStats(userId, token);
     }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 5) updateUserPollInStore: if you only want to update userPolls
+  // updateUserPollInStore: if you only want to update userPolls
   // ─────────────────────────────────────────────────────────────────────────────
   updateUserPollInStore: (pollId, partialData) => {
     set((state) => ({
@@ -162,7 +168,7 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 6) Update comment state in main feed
+  // Update comment state in main feed
   // ─────────────────────────────────────────────────────────────────────────────
   updateCommentState: (pollId, newComment) => {
     set((state) => {
@@ -206,9 +212,9 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 7) Add a newly created poll to the main feed
+  // Add a newly created poll to the main feed
   // ─────────────────────────────────────────────────────────────────────────────
-  addPollToStore: (newPoll, userId, token) => { 
+  addPollToStore: (newPoll, userId, token) => {
     // <-- CHANGED: accept userId, token to refresh stats if needed
     if (newPoll.User && !newPoll.user) {
       newPoll.user = newPoll.User;
@@ -225,9 +231,9 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 8) Remove poll from main feed
+  // Remove poll from main feed
   // ─────────────────────────────────────────────────────────────────────────────
-  removePoll: (pollId, userId, token) => { 
+  removePoll: (pollId, userId, token) => {
     // <-- CHANGED: accept userId, token to refresh stats if needed
     set((state) => ({
       polls: state.polls.filter((p) => p.id !== pollId),
@@ -254,20 +260,31 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 9) Initialize store with websockets
+  // Initialize store with websockets
   // ─────────────────────────────────────────────────────────────────────────────
-  initPolls: (token, userId) => { // <-- CHANGED: accept userId to refresh stats
-    get().fetchAllPolls(token);
+  initPolls: (token, userId) => {
+    get().fetchAllPolls(token); // or fetchUserPolls, up to you
 
-    // Vote socket
+    // Connect Vote WebSocket
     connectVoteSocket((pollId, userVote, options) => {
-      // pass userId/token so updatePollState can refresh stats
       get().updatePollState(pollId, userVote, options, userId, token);
     });
 
-    // Comment socket
+    // Connect Comment WebSocket
     connectCommentSocket((pollId, comment) => {
       get().updateCommentState(pollId, comment);
     });
   },
 }));
+
+function mergeOptions(oldOptions, updatedOptions) {
+  return oldOptions.map((oldOpt) => {
+    const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
+    if (!newOpt) return oldOpt;
+    return {
+      ...oldOpt,
+      text: newOpt.text ?? oldOpt.text,
+      votes: newOpt.votes,
+    };
+  });
+}

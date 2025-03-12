@@ -18,16 +18,15 @@ export default function App() {
  * 2) Calls initPolls(token) in Zustand
  */
 function Root() {
-  const { token } = useContext(AuthContext);
+  const { token, user } = useContext(AuthContext);
   const initPolls = usePollsStore((state) => state.initPolls);
 
   useEffect(() => {
-    // If we have a token, initialize polls & connect websockets
-    if (token) {
-      initPolls(token);
+    if (token && user?.id) {
+      // pass both the token and the user.id
+      initPolls(token, user.id);
     }
-  }, [token]);
+  }, [token, user?.id]);
 
-  // Render your app’s navigation
   return <AppNavigator />;
 }

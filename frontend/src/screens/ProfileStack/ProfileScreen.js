@@ -1,16 +1,25 @@
 // src/screens/ProfileScreen.js
+
 import React, { useContext, useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Dimensions } from 'react-native';
-import { Modalize } from 'react-native-modalize';
-import { Settings, Trash2 } from 'react-native-feather';
-import colors from '../../styles/colors';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Image,
+  Dimensions,
+} from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
-import PollCard from '../../components/PollCard';
-import CommentCard from '../../components/CommentCard';
 import { usePollsStore } from '../../store/usePollsStore';
+import PollCard from '../../components/PollCard';
+import VoteCard from '../../components/VoteCard';
+import CommentCard from '../../components/CommentCard';
+import PollModalsManager from '../../components/PollModalsManager'; // <-- NEW
 import { getUserComments, getUserStats } from '../../services/userService';
-import { deletePoll, updatePoll } from '../../services/pollService';
-import { sendVoteWS } from '../../services/pollService';
+import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
+import colors from '../../styles/colors';
 
 const { height } = Dimensions.get('window');
 
@@ -26,19 +35,23 @@ const ProfileScreen = ({ navigation }) => {
 
   // Zustand store
   const userPolls = usePollsStore((state) => state.userPolls);
-  const votedPolls = usePollsStore((state) => state.votedPolls);            // <--- new
+  const votedPolls = usePollsStore((state) => state.votedPolls);
   const fetchUserPolls = usePollsStore((state) => state.fetchUserPolls);
-  const fetchUserVotedPolls = usePollsStore((state) => state.fetchUserVotedPolls); // <--- new
+  const fetchUserVotedPolls = usePollsStore((state) => state.fetchUserVotedPolls);
+
+  // Methods to remove/update poll in store
+  const removePoll = usePollsStore((state) => state.removePoll);
+  const updatePollInBoth = usePollsStore((state) => state.updatePollInBoth);
+
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
-  // 3) Local states
+  // Local states for comments
   const [comments, setComments] = useState([]);
   const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
-  const [votes, setVotes] = useState([]);
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
 
-  // 4) Stats
+  // Stats
   const [stats, setStats] = useState({
     followers: 0,
     following: 0,
@@ -46,22 +59,7 @@ const ProfileScreen = ({ navigation }) => {
     totalVotes: 0,
   });
 
-  // Modals
-  const menuModalRef = useRef(null);
-  const editModalRef = useRef(null);
-  const deleteConfirmModalRef = useRef(null);
-  const fullEditModalRef = useRef(null);
-
-  // Track poll for modals
-  const [selectedPoll, setSelectedPoll] = useState(null);
-  const [tempAllowComments, setTempAllowComments] = useState(false);
-  const [tempIsPrivate, setTempIsPrivate] = useState(false);
-  const [tempQuestion, setTempQuestion] = useState('');
-  const [tempOptions, setTempOptions] = useState([]);
-
-  // ─────────────────────────────────────────────────────────────────────────────
   // On mount: fetch user’s polls & stats
-  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchUserPolls(token, user.id);
     fetchStats();
@@ -76,35 +74,26 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // Voting
-  // ─────────────────────────────────────────────────────────────────────────────
   const handleVote = (pollId, optionId) => {
     if (!user?.id) return;
     sendVoteWS(user.id, pollId, optionId);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // Tab Switching
-  // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
 
     if (tab === TABS.POLLS) {
-      // fetch user’s own polls
-      fetchUserPolls(token, user.id);
-
+      await fetchUserPolls(token, user.id);
     } else if (tab === TABS.VOTES) {
-      // fetch user’s voted polls
-      fetchUserVotedPolls(token, user.id); 
-
+      await fetchUserVotedPolls(token, user.id);
     } else if (tab === TABS.COMMENTS) {
-      // fetch user’s comments
       try {
         const data = await getUserComments(user.id, token);
         setComments(data);
 
-        // group them by poll
+        // Group them by poll
         const groupedMap = {};
         data.forEach((comment) => {
           const p = comment.poll;
@@ -134,80 +123,31 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Ellipsis & modals
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ===== PollModalsManager usage =====
+  const pollModalsRef = useRef(null);
+
+  // Called when user taps the ellipsis on a PollCard
   const handleOpenMenu = (poll) => {
-    setSelectedPoll(poll);
-    setTempAllowComments(poll.allowComments);
-    setTempIsPrivate(poll.isPrivate);
-    setTempQuestion(poll.question);
-    setTempOptions(poll.options?.map((o) => o.text || '') || []);
-    menuModalRef.current?.open();
+    pollModalsRef.current?.openMenu(poll);
   };
 
-  const handleMenuOption = (option) => {
-    menuModalRef.current?.close();
-    setTimeout(() => {
-      if (option === 'delete') {
-        deleteConfirmModalRef.current?.open();
-      } else if (option === 'edit') {
-        fullEditModalRef.current?.open();
-      } else if (option === 'interaction') {
-        editModalRef.current?.open();
-      }
-    }, 300);
-  };
-
-  const confirmDeletePoll = async () => {
+  // Called by PollModalsManager when user confirms delete
+  const handleDeletePoll = async (pollToDelete) => {
     try {
-      await deletePoll(token, selectedPoll.id);
-      usePollsStore.setState((state) => ({
-        userPolls: state.userPolls.filter((p) => p.id !== selectedPoll.id),
-      }));
-      deleteConfirmModalRef.current?.close();
-      menuModalRef.current?.close();
+      await deletePoll(token, pollToDelete.id);
+      removePoll(pollToDelete.id); // Removes from the store
     } catch (err) {
-      console.error('Delete poll error:', err);
+      console.error('Failed to delete poll:', err);
     }
   };
 
-  const handleSaveToggles = async () => {
+  // Called by PollModalsManager when user saves toggles or full edit
+  const handleSavePoll = async (pollToEdit, payload) => {
     try {
-      const payload = { allowComments: tempAllowComments, isPrivate: tempIsPrivate };
-      const result = await updatePoll(token, selectedPoll.id, payload);
-      if (result.poll) {
-        updateUserPollInStore(selectedPoll.id, {
-          allowComments: result.poll.allowComments,
-          isPrivate: result.poll.isPrivate,
-        });
-      }
-      editModalRef.current?.close();
-      menuModalRef.current?.close();
-    } catch (err) {
-      console.error('Failed to update toggles:', err);
-    }
-  };
-
-  const handleSaveFullEdit = async () => {
-    try {
-      const trimmedQuestion = tempQuestion.trim();
-      const validOptions = tempOptions
-        .map((txt, idx) => ({
-          optionText: txt.trim(),
-          sortOrder: idx,
-        }))
-        .filter((o) => o.optionText !== '');
-
-      const payload = {
-        question: trimmedQuestion,
-        options: validOptions,
-        allowComments: tempAllowComments,
-        isPrivate: tempIsPrivate,
-      };
-      const result = await updatePoll(token, selectedPoll.id, payload);
+      const result = await updatePoll(token, pollToEdit.id, payload);
       if (result.poll && Array.isArray(result.poll.options)) {
-        updateUserPollInStore(selectedPoll.id, {
+        // Merge changes into both `polls` and `userPolls`
+        updatePollInBoth(pollToEdit.id, {
           question: result.poll.question,
           allowComments: result.poll.allowComments,
           isPrivate: result.poll.isPrivate,
@@ -217,16 +157,12 @@ const ProfileScreen = ({ navigation }) => {
           })),
         });
       }
-      fullEditModalRef.current?.close();
-      menuModalRef.current?.close();
     } catch (err) {
-      console.error('Failed to fully edit poll:', err);
+      console.error('Failed to update poll:', err);
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render Tab Content
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Render tab content
   const renderTabContent = () => {
     if (loading) {
       return <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} size="large" />;
@@ -251,9 +187,7 @@ const ProfileScreen = ({ navigation }) => {
         <FlatList
           data={votedPolls}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <PollCard poll={item} onVote={handleVote} onOpenMenu={handleOpenMenu} />
-          )}
+          renderItem={({ item }) => <VoteCard poll={item} />}
           contentContainerStyle={{ paddingBottom: 16 }}
         />
       );
@@ -272,11 +206,9 @@ const ProfileScreen = ({ navigation }) => {
     return null;
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Main Render
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
+      {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.picContainer}>
           <Image
@@ -316,6 +248,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Tabs Row */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
           style={[styles.tabButton, selectedTab === TABS.POLLS && styles.activeTabButton]}
@@ -360,100 +293,15 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Tab Content */}
       <View style={styles.tabContent}>{renderTabContent()}</View>
 
-      {/* =============== The same modals =============== */}
-      <Modalize
-        ref={menuModalRef}
-        withReactModal
-        coverScreen
-        adjustToContentHeight
-        modalStyle={{ backgroundColor: colors.dark }}
-        handleStyle={{ backgroundColor: '#888' }}
-      >
-        <View style={styles.menuModalContent}>
-          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('edit')}>
-            <Text style={styles.menuRowText}>Edit Poll</Text>
-            <Settings width={20} color="#ccc" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('interaction')}>
-            <Text style={styles.menuRowText}>Edit Interaction Settings</Text>
-            <Settings width={20} color="#ccc" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuRow} onPress={() => handleMenuOption('delete')}>
-            <Text style={styles.menuRowText}>Delete Poll</Text>
-            <Trash2 width={20} color="#ccc" />
-          </TouchableOpacity>
-        </View>
-      </Modalize>
-
-      <Modalize
-        ref={editModalRef}
-        withReactModal
-        coverScreen
-        adjustToContentHeight
-        modalStyle={{ backgroundColor: colors.dark }}
-        handleStyle={{ backgroundColor: '#888' }}
-      >
-        <View style={styles.editModalContent}>
-          <Text style={styles.editTitle}>Edit Interaction Settings</Text>
-          <Text style={{ color: '#fff', marginBottom: 10 }}>
-            Allow Comments? {tempAllowComments ? 'Yes' : 'No'}
-          </Text>
-          <Text style={{ color: '#fff', marginBottom: 10 }}>
-            Private Poll? {tempIsPrivate ? 'Yes' : 'No'}
-          </Text>
-
-          <TouchableOpacity style={styles.saveButton} onPress={handleSaveToggles}>
-            <Text style={styles.saveButtonText}>Save</Text>
-          </TouchableOpacity>
-        </View>
-      </Modalize>
-
-      <Modalize
-        ref={fullEditModalRef}
-        withReactModal
-        coverScreen
-        adjustToContentHeight
-        modalStyle={{ backgroundColor: colors.dark }}
-        handleStyle={{ backgroundColor: '#888' }}
-      >
-        <View style={styles.editModalContent}>
-          <Text style={styles.editTitle}>Edit Poll (Full)</Text>
-          <TouchableOpacity style={styles.saveButton} onPress={handleSaveFullEdit}>
-            <Text style={styles.saveButtonText}>Save Poll</Text>
-          </TouchableOpacity>
-        </View>
-      </Modalize>
-
-      <Modalize
-        ref={deleteConfirmModalRef}
-        withReactModal
-        coverScreen
-        adjustToContentHeight
-        modalStyle={{ backgroundColor: colors.dark }}
-        handleStyle={{ backgroundColor: '#888' }}
-      >
-        <View style={styles.deleteConfirmContent}>
-          <Text style={styles.deleteTitle}>Delete this poll?</Text>
-          <Text style={styles.deleteSubtitle}>
-            If you delete this poll, you won't be able to recover it.
-          </Text>
-
-          <TouchableOpacity style={styles.deleteConfirmButton} onPress={confirmDeletePoll}>
-            <Text style={styles.deleteConfirmButtonText}>Delete Poll</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => deleteConfirmModalRef.current?.close()}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </Modalize>
+      {/* PollModalsManager for editing/deleting polls */}
+      <PollModalsManager
+        ref={pollModalsRef}
+        onDeletePoll={handleDeletePoll}
+        onSavePoll={handleSavePoll}
+      />
     </View>
   );
 };
@@ -556,100 +404,5 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
-  },
-
-  commentContainer: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 6,
-    padding: 10,
-    marginBottom: 10,
-  },
-  commentText: {
-    color: colors.dark,
-    fontSize: 14,
-    marginBottom: 2,
-  },
-
-  menuModalContent: {
-    padding: 25,
-  },
-  menuRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a3d52',
-    backgroundColor: '#2a3d52',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    marginVertical: 6,
-    borderRadius: 25,
-  },
-  menuRowText: {
-    color: colors.light,
-    fontSize: 16,
-  },
-  editModalContent: {
-    padding: 25,
-  },
-  editTitle: {
-    fontSize: 18,
-    color: colors.light,
-    marginBottom: 16,
-    fontWeight: '600',
-  },
-  saveButton: {
-    backgroundColor: '#21D0B2',
-    borderRadius: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  saveButtonText: {
-    color: colors.dark,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  deleteConfirmContent: {
-    padding: 25,
-  },
-  deleteTitle: {
-    fontSize: 18,
-    color: colors.light,
-    fontWeight: '700',
-    marginBottom: 14,
-  },
-  deleteSubtitle: {
-    fontSize: 14,
-    color: colors.light,
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  deleteConfirmButton: {
-    backgroundColor: 'red',
-    borderRadius: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  deleteConfirmButtonText: {
-    color: colors.light,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    borderWidth: 1,
-    backgroundColor: '#2a3d52',
-    borderColor: '#2a3d52',
-    borderRadius: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  cancelButtonText: {
-    color: colors.light,
-    fontSize: 16,
-    fontWeight: '500',
   },
 });

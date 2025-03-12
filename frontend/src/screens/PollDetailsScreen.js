@@ -13,56 +13,79 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
-import { sendCommentWS } from '../services/pollService';
+import { deletePoll, updatePoll, sendCommentWS } from '../services/pollService';
 import PollCard from '../components/PollCard';
+import PollModalsManager from '../components/PollModalsManager';
+import { getTimeElapsed } from '../../utils/timeConversions';
 import colors from '../styles/colors';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
-// Simple time-ago helper
-const getTimeElapsed = (createdAt) => {
-  if (!createdAt) return '';
-  const date = new Date(createdAt);
-  const now = new Date();
-  const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-  if (diffInMinutes < 60) return `${diffInMinutes}m`;
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours}h`;
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays}d`;
-  const diffInWeeks = Math.floor(diffInDays / 7);
-  if (diffInWeeks < 4) return `${diffInWeeks}w`;
-  const diffInMonths = Math.floor(diffInDays / 30);
-  if (diffInMonths < 12) return `${diffInMonths}mo`;
-  const diffInYears = Math.floor(diffInMonths / 12);
-  return `${diffInYears}y`;
-};
-
 const PollDetailsScreen = ({ route }) => {
   const navigation = useNavigation();
-  const { user } = useContext(AuthContext);
+  const { user, token } = useContext(AuthContext);
 
-  // NEW: also read highlightCommentId if passed in
+  // Destructure pollId and optional highlightCommentId from route params
   const { pollId, highlightCommentId } = route.params || {};
 
-  // Global store data
+  // Zustand store
   const polls = usePollsStore((state) => state.polls);
+  const removePoll = usePollsStore((state) => state.removePoll);
+
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
   // Local comment input
   const [commentText, setCommentText] = useState('');
 
-  // A ref for FlatList
+  // For scrolling to a specific comment
   const flatListRef = useRef(null);
+
+  // For the PollModalsManager
+  const pollModalsRef = useRef(null);
 
   // Find the poll in the store
   const poll = polls.find((p) => p.id === pollId);
 
-  // Submit a new comment with optimistic update
+  // Called by PollCard’s ellipsis if the user is the owner
+  const handleOpenMenu = (pollToEdit) => {
+    pollModalsRef.current?.openMenu(pollToEdit);
+  };
+
+  // ============== PollModalsManager callbacks ==============
+  const handleDeletePoll = async (pollToDelete) => {
+    try {
+      await deletePoll(token, pollToDelete.id);
+      removePoll(pollToDelete.id);
+      // After deleting, go back to the previous screen
+      navigation.goBack();
+    } catch (err) {
+      console.error('Failed to delete poll:', err);
+    }
+  };
+
+  const handleSavePoll = async (pollToEdit, payload) => {
+    try {
+      const result = await updatePoll(token, pollToEdit.id, payload);
+      if (result.poll && Array.isArray(result.poll.options)) {
+        usePollsStore.getState().updatePollInStore(pollToEdit.id, {
+          question: result.poll.question,
+          allowComments: result.poll.allowComments,
+          isPrivate: result.poll.isPrivate,
+          options: result.poll.options.map((o) => ({
+            ...o,
+            text: o.optionText,
+          })),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to update poll:', err);
+    }
+  };
+
+  // Submit a new comment
   const submitComment = () => {
     if (!commentText.trim() || !poll) return;
-
     const trimmedText = commentText.trim();
 
     // 1) Create a local "temp" comment
@@ -70,17 +93,17 @@ const PollDetailsScreen = ({ route }) => {
       id: 'temp-' + Date.now(),
       text: trimmedText,
       createdAt: new Date().toISOString(),
-      User: {
+      user: {
         id: user.id,
         username: user.username,
         profilePicture: user.profilePicture,
       },
     };
 
-    // 2) Immediately update the store
+    // 2) Update the store (optimistic)
     usePollsStore.getState().updateCommentState(poll.id, tempComment);
 
-    // 3) Send the actual comment to the server (WebSocket)
+    // 3) Send the actual comment via WebSocket
     sendCommentWS(user.id, poll.id, trimmedText);
 
     // 4) Clear the input
@@ -88,13 +111,13 @@ const PollDetailsScreen = ({ route }) => {
 
     // 5) Scroll to the bottom so the new comment is visible
     setTimeout(() => {
-      if (flatListRef.current && poll.comments.length > 0) {
+      if (flatListRef.current && poll.comments?.length > 0) {
         flatListRef.current.scrollToEnd({ animated: true });
       }
     }, 100);
   };
 
-  // NEW: useEffect to scroll & highlight a specific comment
+  // Scroll & highlight a specific comment if highlightCommentId is provided
   useEffect(() => {
     if (!poll || !poll.comments) return;
     if (!highlightCommentId) return;
@@ -111,6 +134,7 @@ const PollDetailsScreen = ({ route }) => {
     }
   }, [poll, highlightCommentId]);
 
+  // ================= Render UI =================
   if (loading) {
     return (
       <View style={styles.center}>
@@ -133,12 +157,9 @@ const PollDetailsScreen = ({ route }) => {
     );
   }
 
-  // Existing or newly added comments
-  const comments = poll.comments || [];
-
   return (
     <SafeAreaView style={styles.safeContainer} edges={['left', 'right', 'bottom']}>
-      {/* Static header at the top */}
+      {/* Header with a Back button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>Back</Text>
@@ -146,20 +167,22 @@ const PollDetailsScreen = ({ route }) => {
         <Text style={styles.headerTitle}>Poll Details</Text>
       </View>
 
-      {/* Add more space below the header */}
+      {/* Poll Card with bottom row ellipsis if owner */}
       <View style={styles.pollCardContainer}>
-        <PollCard poll={poll} showDetailedTimestamp />
+        <PollCard poll={poll} showDetailedTimestamp onOpenMenu={handleOpenMenu} />
       </View>
 
+      {/* Comments List */}
       <FlatList
         ref={flatListRef}
         style={styles.commentsList}
-        data={comments}
-        keyExtractor={(item, index) => (item?.id ? item.id.toString() : index.toString())}
+        data={poll.comments || []}
+        keyExtractor={(item, index) =>
+          item?.id ? item.id.toString() : index.toString()
+        }
         renderItem={({ item: comment }) => {
           if (!comment) return null;
-
-          // Decide if this comment is the highlighted one
+          // Check if this comment is highlighted
           const isHighlighted = highlightCommentId && comment.id === highlightCommentId;
 
           const userPic = comment.user?.profilePicture || DEFAULT_PROFILE_IMG;
@@ -168,12 +191,10 @@ const PollDetailsScreen = ({ route }) => {
           return (
             <View style={styles.commentItem}>
               <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
-
-              {/* NEW: highlight background on commentContent */}
               <View
                 style={[
                   styles.commentContent,
-                  isHighlighted && styles.highlightedComment, // override background
+                  isHighlighted && styles.highlightedComment,
                 ]}
               >
                 <View style={styles.commentHeader}>
@@ -189,7 +210,7 @@ const PollDetailsScreen = ({ route }) => {
         }}
       />
 
-      {/* Comment Input */}
+      {/* Comment Input if allowComments */}
       {poll.allowComments && (
         <View style={styles.commentInputContainer}>
           <TextInput
@@ -207,6 +228,13 @@ const PollDetailsScreen = ({ route }) => {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Poll Modals Manager */}
+      <PollModalsManager
+        ref={pollModalsRef}
+        onDeletePoll={handleDeletePoll}
+        onSavePoll={handleSavePoll}
+      />
     </SafeAreaView>
   );
 };
@@ -223,9 +251,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark || '#333',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
     paddingBottom: 16,
   },
   backButton: {
@@ -241,12 +266,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+    marginBottom: 16,
   },
 
   pollCardContainer: {
     marginTop: 16,
     marginHorizontal: 16,
   },
+
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -256,33 +283,30 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 16,
   },
+
   commentsList: {
     flex: 1,
+    marginTop: 8,
   },
-
   commentItem: {
     flexDirection: 'row',
     marginBottom: 12,
     paddingHorizontal: 16,
-    marginTop: 8,
   },
-
+  commentProfileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
   commentContent: {
     flex: 1,
     backgroundColor: '#e4edf5',
     borderRadius: 6,
     padding: 8,
   },
-
   highlightedComment: {
     backgroundColor: '#c5eefa',
-  },
-
-  commentProfileImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
   },
   commentHeader: {
     flexDirection: 'row',
@@ -306,9 +330,9 @@ const styles = StyleSheet.create({
   commentInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
     paddingHorizontal: 16,
-    marginBottom: -18,
+    marginBottom: 10,
+    marginTop: 6,
   },
   commentInput: {
     flex: 1,

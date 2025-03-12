@@ -2,9 +2,8 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
-// Import your profile-related screens
 import ProfileScreen from '../ProfileStack/ProfileScreen';
-import PollDetailsScreen from '../PollDetailsScreen'; 
+import PollDetailsScreen from '../PollDetailsScreen';
 import EditProfileScreen from '../ProfileStack/EditProfileScreen';
 
 const Stack = createStackNavigator();

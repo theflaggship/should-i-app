@@ -1,3 +1,4 @@
+// src/components/PollCard.js
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -44,9 +45,7 @@ const PollCard = ({
   const pollOptions = poll.options || [];
   const totalVotes = pollOptions.reduce((sum, opt) => sum + (opt.votes || 0), 0);
 
-  // Show fill bar if:
-  //  - user is poll owner, or
-  //  - user has voted (userVote != null)
+  // Show fill bar if user is owner or has voted
   const showFillBarAndPercent = isOwner || userVote !== null;
 
   // We'll store an Animated.Value for each poll option
@@ -54,10 +53,10 @@ const PollCard = ({
     pollOptions.map(() => new Animated.Value(0))
   );
 
-  // Keep track of the previous votes array so we only animate if votes changed
+  // Keep track of the previous votes array
   const prevVotesRef = useRef([]);
 
-  // If the poll options array length changes, re-init
+  // Re-init fillAnims if pollOptions length changes
   useEffect(() => {
     if (fillAnims.length !== pollOptions.length) {
       setFillAnims(pollOptions.map(() => new Animated.Value(0)));
@@ -65,22 +64,17 @@ const PollCard = ({
     }
   }, [pollOptions, fillAnims]);
 
-  // Animate only if votes changed (and user is not owner, and user has voted, and totalVotes > 0)
+  // Animate fill bars if votes changed
   useEffect(() => {
-    // 1) If pollOptions is empty or no total votes => skip animation logic
     if (pollOptions.length === 0 || totalVotes === 0) {
       // Reset to zero fill
-      pollOptions.forEach((_, i) => {
-        if (fillAnims[i]) {
-          fillAnims[i].setValue(0);
-        }
-      });
+      pollOptions.forEach((_, i) => fillAnims[i]?.setValue(0));
       prevVotesRef.current = pollOptions.map((opt) => opt.votes || 0);
       return;
     }
 
-    // 2) If owner => skip animations => snap to final
     if (isOwner) {
+      // Owner => snap to final
       pollOptions.forEach((opt, i) => {
         const rawPercent = Math.round((opt.votes || 0) / totalVotes * 100);
         fillAnims[i]?.setValue(rawPercent);
@@ -89,16 +83,14 @@ const PollCard = ({
       return;
     }
 
-    // 3) If user hasn't voted => fill bars = 0
     if (userVote == null) {
-      pollOptions.forEach((_, i) => {
-        fillAnims[i]?.setValue(0);
-      });
+      // No vote => fill bars = 0
+      pollOptions.forEach((_, i) => fillAnims[i]?.setValue(0));
       prevVotesRef.current = pollOptions.map((opt) => opt.votes || 0);
       return;
     }
 
-    // 4) Compare old vs new to see if anything changed
+    // Compare old vs new
     const oldVotes = prevVotesRef.current;
     const newVotes = pollOptions.map((opt) => opt.votes || 0);
 
@@ -114,8 +106,8 @@ const PollCard = ({
       changed = true;
     }
 
-    // 5) Animate from old -> new if changed
     if (changed) {
+      // Animate from old -> new
       pollOptions.forEach((opt, i) => {
         const rawPercent = Math.round((opt.votes || 0) / totalVotes * 100);
         Animated.timing(fillAnims[i], {
@@ -126,14 +118,13 @@ const PollCard = ({
         }).start();
       });
     } else {
-      // No change => just snap
+      // Snap
       pollOptions.forEach((opt, i) => {
         const rawPercent = Math.round((opt.votes || 0) / totalVotes * 100);
         fillAnims[i]?.setValue(showFillBarAndPercent ? rawPercent : 0);
       });
     }
 
-    // Update previous votes
     prevVotesRef.current = newVotes;
   }, [
     pollOptions,
@@ -145,14 +136,10 @@ const PollCard = ({
   ]);
 
   const handleOptionPress = (optionId) => {
-    // If user is not logged in, do nothing
     if (!user?.id) return;
-
-    // If parent provided an onVote callback, use it
     if (onVote) {
       onVote(poll.id, optionId);
     } else {
-      // Otherwise fallback to direct WS
       sendVoteWS(user.id, poll.id, optionId);
     }
   };
@@ -163,6 +150,12 @@ const PollCard = ({
     }
   };
 
+  // NEW: navigate to user profile stack
+  const handleNavigateToUserProfile = () => {
+    if (!finalUser.id) return;
+    navigation.navigate('OtherUserProfile', { userId: finalUser.id });
+  };
+
   return (
     <View style={styles.card}>
       {/* Header row */}
@@ -171,9 +164,11 @@ const PollCard = ({
         activeOpacity={0.8}
         onPress={handleNavigateToDetails}
       >
+        {/* Tapping the userRowLeft => go to user profile */}
         <TouchableOpacity
           style={styles.userRowLeft}
           activeOpacity={0.8}
+          onPress={handleNavigateToUserProfile}
           pointerEvents="box-only"
         >
           <Image
@@ -214,8 +209,6 @@ const PollCard = ({
             const rawPercent =
               totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
 
-            // If owner => skip animation => just rawPercent
-            // Otherwise => use fillAnims
             let fillWidthStyle;
             if (isOwner) {
               fillWidthStyle = {
@@ -346,6 +339,7 @@ const PollCard = ({
 
 export default PollCard;
 
+// The rest of your styles remain the same
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',

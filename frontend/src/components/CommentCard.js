@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   question: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.dark,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   userCommentsContainer: {
     marginTop: 8,

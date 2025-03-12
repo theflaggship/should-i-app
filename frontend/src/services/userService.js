@@ -13,7 +13,6 @@ export const getUserComments = async (userId, token) => {
     });
     return response.data;
 };
-  
 
 export const getUserVotes = async (userId, token) => {
   const response = await api.get(`/users/${userId}/votes`, {
@@ -27,4 +26,11 @@ export const getUserStats = async (userId, token) => {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data; // { followers, following, totalPolls, totalVotes }
+};
+
+export const getUserById = async (userId, token) => {
+  const response = await api.get(`/users/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data; // This should be the user object
 };

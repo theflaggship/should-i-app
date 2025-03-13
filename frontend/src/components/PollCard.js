@@ -12,6 +12,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { sendVoteWS } from '../services/pollService';
+import { useUserStatsStore } from '../store/useUserStatsStore';
 import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather';
 import { getTimeElapsed, formatDetailedDate } from '../../utils/timeConversions';
 import colors from '../styles/colors';
@@ -138,10 +139,32 @@ const PollCard = ({
 
   const handleOptionPress = (optionId) => {
     if (!user?.id) return;
-    if (onVote) {
-      onVote(poll.id, optionId);
+  
+    // If userVote is the same as optionId, they're removing the vote
+    if (poll.userVote === optionId) {
+      // Decrement totalVotes locally if you want immediate UI feedback
+      useUserStatsStore.getState().decrementTotalVotes();
+  
+      // Also call your WS or onVote logic to remove the vote on the backend
+      if (onVote) {
+        onVote(poll.id, optionId); // This should handle removing the vote
+      } else {
+        sendVoteWS(user.id, poll.id, optionId);
+      }
     } else {
-      sendVoteWS(user.id, poll.id, optionId);
+      // The user is adding or changing their vote
+      // If poll.userVote == null => they had no vote, so increment
+      if (poll.userVote == null) {
+        useUserStatsStore.getState().incrementTotalVotes();
+      }
+      // If poll.userVote != null => they’re switching from one option to another
+      // (some apps might not increment or decrement here; it depends on your logic)
+  
+      if (onVote) {
+        onVote(poll.id, optionId);
+      } else {
+        sendVoteWS(user.id, poll.id, optionId);
+      }
     }
   };
 

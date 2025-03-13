@@ -17,6 +17,7 @@ import React, {
   } from 'react-native';
   import { Modalize } from 'react-native-modalize';
   import { Settings, Trash2, MinusCircle } from 'react-native-feather';
+  import { useUserStatsStore } from '../store/useUserStatsStore';
   import colors from '../styles/colors';
   
   // For dynamic snapPoints
@@ -116,6 +117,7 @@ import React, {
       const handleConfirmDelete = () => {
         if (onDeletePoll && poll) {
           onDeletePoll(poll);
+          useUserStatsStore.getState().decrementTotalPolls();
         }
         deleteConfirmModalRef.current?.close();
       };

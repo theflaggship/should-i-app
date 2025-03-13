@@ -1,5 +1,5 @@
 // src/screens/OtherUserProfileScreen.js
-import React, { useEffect, useState, useRef, useContext } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,24 @@ import {
   Image,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { usePollsStore } from '../store/usePollsStore';
-import { getUserById, getUserComments, getUserStats } from '../services/userService';
 import { AuthContext } from '../context/AuthContext';
-import colors from '../styles/colors';
+
+// Services
+import { getUserById, getUserComments } from '../services/userService';
+import { followUser, unfollowUser } from '../services/followService';
+
+// Zustand store
+import { usePollsStore } from '../store/usePollsStore';
+import { useUserStatsStore } from '../store/useUserStatsStore';
+
+// UI & Components
 import PollCard from '../components/PollCard';
 import VoteCard from '../components/VoteCard';
 import CommentCard from '../components/CommentCard';
+import { Check } from 'react-native-feather';
+import colors from '../styles/colors';
 
+// Tab constants
 const TABS = {
   POLLS: 'POLLS',
   VOTES: 'VOTES',
@@ -29,53 +39,79 @@ export default function OtherUserProfileScreen() {
   const navigation = useNavigation();
   const { token } = useContext(AuthContext);
 
+  // The ID of the user we want to view
   const viewedUserId = route.params?.userId;
 
-  // Zustand store
+  // Polls store
   const userPolls = usePollsStore((state) => state.userPolls);
   const votedPolls = usePollsStore((state) => state.votedPolls);
   const fetchUserPolls = usePollsStore((state) => state.fetchUserPolls);
   const fetchUserVotedPolls = usePollsStore((state) => state.fetchUserVotedPolls);
 
+  // Loading/error from polls store
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
+  // Stats store for the viewed user
+  const {
+    followers,
+    following,
+    totalPolls,
+    totalVotes,
+    fetchStats,
+    loading: statsLoading,
+    error: statsError,
+  } = useUserStatsStore();
+
+  // Local state for user’s profile object
   const [profileOwner, setProfileOwner] = useState(null);
+
+  // Local state for comments tab
   const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
+
+  // Tab selection
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
-  const [stats, setStats] = useState({
-    followers: 0,
-    following: 0,
-    totalPolls: 0,
-    totalVotes: 0,
-  });
+
+  // Track if we are currently following this user
   const [isFollowing, setIsFollowing] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // On mount (or if viewedUserId changes), fetch user data & stats
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (viewedUserId) {
-      fetchDataForUser();
-    }
+    if (!viewedUserId) return;
+    fetchDataForUser();
+    fetchStats(viewedUserId, token); // from useUserStatsStore
   }, [viewedUserId]);
 
+  // Fetch user & polls
   const fetchDataForUser = async () => {
     try {
-      // 1) Fetch the user data
+      // 1) Fetch the user data from server
       const fetchedUser = await getUserById(viewedUserId, token);
       setProfileOwner(fetchedUser);
 
-      // 2) Fetch user polls
-      await fetchUserPolls(token, viewedUserId);
+      // 2) If your backend returns amIFollowing
+      if (typeof fetchedUser.amIFollowing === 'boolean') {
+        setIsFollowing(fetchedUser.amIFollowing);
+      } else {
+        // If not provided, you might do a separate call or default to false
+        setIsFollowing(false);
+      }
 
-      // 3) Fetch stats
-      const statsData = await getUserStats(viewedUserId, token);
-      setStats(statsData);
+      // 3) Fetch user’s polls
+      await fetchUserPolls(token, viewedUserId);
     } catch (err) {
       console.error('Error fetching user data:', err);
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Tab switching logic
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
+
     if (tab === TABS.POLLS) {
       await fetchUserPolls(token, viewedUserId);
     } else if (tab === TABS.VOTES) {
@@ -112,10 +148,38 @@ export default function OtherUserProfileScreen() {
     }
   };
 
-  const handleFollowToggle = () => {
-    setIsFollowing(!isFollowing);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Follow/Unfollow logic
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleFollowToggle = async () => {
+    if (!viewedUserId || !token) return;
+
+    if (isFollowing) {
+      // Unfollow
+      try {
+        await unfollowUser(viewedUserId, token);
+        setIsFollowing(false);
+        // Re-fetch stats to update follower count
+        fetchStats(viewedUserId, token);
+      } catch (err) {
+        console.error('Unfollow error:', err);
+      }
+    } else {
+      // Follow
+      try {
+        await followUser(viewedUserId, token);
+        setIsFollowing(true);
+        // Re-fetch stats to update follower count
+        fetchStats(viewedUserId, token);
+      } catch (err) {
+        console.error('Follow error:', err);
+      }
+    }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render tab content
+  // ─────────────────────────────────────────────────────────────────────────────
   const renderTabContent = () => {
     if (loading) {
       return (
@@ -130,39 +194,42 @@ export default function OtherUserProfileScreen() {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
-    if (selectedTab === TABS.POLLS) {
-      return (
-        <FlatList
-          data={userPolls}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => <PollCard poll={item} disableMainPress={false} />}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
-    } else if (selectedTab === TABS.VOTES) {
-      return (
-        <FlatList
-          data={votedPolls}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => <VoteCard poll={item} />}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
-    } else if (selectedTab === TABS.COMMENTS) {
-      return (
-        <FlatList
-          data={commentsGroupedByPoll}
-          keyExtractor={(item) => item.pollId.toString()}
-          renderItem={({ item }) => (
-            <CommentCard poll={item.poll} userComments={item.userComments} />
-          )}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
+    switch (selectedTab) {
+      case TABS.POLLS:
+        return (
+          <FlatList
+            data={userPolls}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => <PollCard poll={item} disableMainPress={false} />}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      case TABS.VOTES:
+        return (
+          <FlatList
+            data={votedPolls}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => <VoteCard poll={item} />}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      case TABS.COMMENTS:
+        return (
+          <FlatList
+            data={commentsGroupedByPoll}
+            keyExtractor={(item) => item.pollId.toString()}
+            renderItem={({ item }) => (
+              <CommentCard poll={item.poll} userComments={item.userComments} />
+            )}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      default:
+        return null;
     }
-    return null;
   };
 
+  // If we haven't loaded the user yet
   if (!profileOwner) {
     return (
       <View style={styles.center}>
@@ -171,7 +238,9 @@ export default function OtherUserProfileScreen() {
     );
   }
 
-  const showSummary = profileOwner.personalSummary && profileOwner.personalSummary.trim() !== '';
+  const showSummary =
+    profileOwner.personalSummary &&
+    profileOwner.personalSummary.trim() !== '';
 
   return (
     <View style={styles.container}>
@@ -189,42 +258,68 @@ export default function OtherUserProfileScreen() {
             }}
             style={styles.profileImage}
           />
-          {/* Always show Follow button (no edit) */}
+          {/* Follow/Unfollow button */}
           <TouchableOpacity
             style={[
-              styles.editButton,
-              { backgroundColor: isFollowing ? '#666' : '#21D0B2' },
+              styles.followButton,
+              isFollowing
+                ? {
+                  backgroundColor: '#2a3d52',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }
+                : {
+                  backgroundColor: '#21D0B2',
+                  right: 20,
+                },
             ]}
             onPress={handleFollowToggle}
           >
-            <Text style={styles.editButtonText}>
+            <Text
+              style={[
+                styles.followButtonText,
+                isFollowing ? { color: colors.light } : { color: colors.dark },
+              ]}
+            >
               {isFollowing ? 'Following' : 'Follow'}
             </Text>
+            {isFollowing && (
+              <Check
+                width={16}
+                height={16}
+                color={colors.secondary}
+                style={{ marginLeft: 6 }}
+              />
+            )}
           </TouchableOpacity>
+
         </View>
 
         <Text style={styles.username}>@{profileOwner.username || 'Unknown'}</Text>
 
         {showSummary && (
-          <Text style={styles.summaryText}>{profileOwner.personalSummary}</Text>
+          <Text style={styles.summaryText}>
+            {profileOwner.personalSummary}
+          </Text>
         )}
 
-        {/* Stats */}
+        {/* Stats from useUserStatsStore */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.followers}</Text>
+            <Text style={styles.statNumber}>{followers}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.following}</Text>
+            <Text style={styles.statNumber}>{following}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.totalPolls}</Text>
+            <Text style={styles.statNumber}>{totalPolls}</Text>
             <Text style={styles.statLabel}>Polls</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.totalVotes}</Text>
+            <Text style={styles.statNumber}>{totalVotes}</Text>
             <Text style={styles.statLabel}>Total Votes</Text>
           </View>
         </View>
@@ -281,6 +376,7 @@ export default function OtherUserProfileScreen() {
   );
 }
 
+// ============= STYLES =============
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -319,7 +415,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
   },
-  editButton: {
+  followButton: {
     position: 'absolute',
     right: 0,
     bottom: 0,
@@ -329,7 +425,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#21D0B2',
   },
-  editButtonText: {
+  followButtonText: {
     color: colors.dark,
     fontSize: 14,
     fontWeight: '600',

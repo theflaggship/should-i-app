@@ -4,15 +4,28 @@ const { User, Poll, Vote, Comment, PollOption, Follow } = require('../models');
 // GET /api/users/:id - Retrieve a user profile (excluding password)
 exports.getUserProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password'] }
+    const userId = parseInt(req.params.id, 10);
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] },
     });
     if (!user) {
-      const err = new Error('User not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'User not found' });
     }
-    res.status(200).json(user);
+
+    // We'll attach amIFollowing if user is not the same
+    let amIFollowing = false;
+    if (req.user.id !== userId) {
+      const existing = await Follow.findOne({
+        where: { followerId: req.user.id, followingId: userId },
+      });
+      amIFollowing = !!existing;
+    }
+
+    // Convert to JSON and attach amIFollowing
+    const userData = user.toJSON();
+    userData.amIFollowing = amIFollowing;
+
+    return res.status(200).json(userData);
   } catch (error) {
     next(error);
   }
@@ -158,8 +171,6 @@ exports.getUserComments = async (req, res, next) => {
   }
 };
 
-// GET /api/users/:id/votes - Retrieve all votes cast by the user
-// userController.js
 // GET /api/users/:id/votes
 exports.getUserVotes = async (req, res, next) => {
   try {

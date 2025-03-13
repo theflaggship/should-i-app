@@ -141,11 +141,14 @@ User.belongsToMany(User, {
   as: 'followers',
   through: Follow,
   foreignKey: 'followingId',
+  otherKey: 'followerId',  
 });
+
 User.belongsToMany(User, {
   as: 'following',
   through: Follow,
   foreignKey: 'followerId',
+  otherKey: 'followingId',
 });
 
 // 5. Export the Sequelize instance and all models

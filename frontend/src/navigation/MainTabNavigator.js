@@ -22,6 +22,7 @@ import { Modalize } from 'react-native-modalize';
 // 2) Auth & Store
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
+import { useUserStatsStore } from '../store/useUserStatsStore';
 import { createPoll } from '../services/pollService';
 
 // Dummy screen so "Create" tab won't navigate away
@@ -116,6 +117,8 @@ const MainTabNavigator = () => {
       };
       // Call your backend
       const response = await createPoll(token, payload);
+      useUserStatsStore.getState().incrementTotalPolls();
+
 
       const pollWithTransformedOptions = {
         ...response.poll,

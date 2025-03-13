@@ -14,15 +14,22 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
 import { usePollsStore } from '../../store/usePollsStore';
-import { useUserStatsStore } from '../../store/useUserStatsStore'; // <-- NEW
+import { useUserStatsStore } from '../../store/useUserStatsStore';
 import PollCard from '../../components/PollCard';
 import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
 import PollModalsManager from '../../components/PollModalsManager';
 import EditProfileModal from '../../components/EditProfileModal';
 
-import { getUserById, getUserComments } from '../../services/userService';
-import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
+import { 
+  getUserById, 
+  getUserComments 
+} from '../../services/userService';
+import { 
+  deletePoll, 
+  updatePoll, 
+  sendVoteWS 
+} from '../../services/pollService';
 import colors from '../../styles/colors';
 
 const { height } = Dimensions.get('window');
@@ -37,14 +44,16 @@ const TABS = {
 export default function ProfileScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { user: loggedInUser, token } = useContext(AuthContext);
+
+  // Grab user + token + login function from AuthContext
+  const { user: loggedInUser, token, login } = useContext(AuthContext);
 
   // If route.params.userId is provided, we are viewing someone else’s profile
   // Otherwise, default to the logged-in user's ID
   const viewedUserId = route.params?.userId || loggedInUser.id;
   const isMyProfile = viewedUserId === loggedInUser.id;
 
-  // Zustand store for polls
+  // ----- Polls store -----
   const userPolls = usePollsStore((state) => state.userPolls);
   const votedPolls = usePollsStore((state) => state.votedPolls);
   const fetchUserPolls = usePollsStore((state) => state.fetchUserPolls);
@@ -54,7 +63,7 @@ export default function ProfileScreen() {
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
-  // Zustand store for user stats
+  // ----- Stats store -----
   const {
     followers,
     following,
@@ -65,51 +74,52 @@ export default function ProfileScreen() {
     error: statsError,
   } = useUserStatsStore();
 
-  // We store whichever user is being viewed in `profileOwner`.
-  // If it's my profile, we can just set it to `loggedInUser`.
-  // If it's another user, we fetch from an API (e.g., getUserById).
-  const [profileOwner, setProfileOwner] = useState(isMyProfile ? loggedInUser : null);
+  // Keep track of the profile user in local state
+  const [profileOwner, setProfileOwner] = useState(null);
 
-  // Local state for the "Comments" tab
+  // Comments data for the "Comments" tab
   const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
   // Tab selection
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
 
-  // If you need "Follow" logic for other users, you could track isFollowing, etc.
+  // If you had follow logic for other users:
   const [isFollowing, setIsFollowing] = useState(false);
 
+  // Refs for modals
+  const pollModalsRef = useRef(null);
+  const editProfileRef = useRef(null);
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // On mount or if viewedUserId changes: fetch user & stats
+  // ALWAYS re-fetch the user from server
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchDataForProfile();
-    fetchStats(viewedUserId, token); // get stats from userStatsStore
-  }, [viewedUserId]);
-
-  const fetchDataForProfile = async () => {
-    try {
-      if (!isMyProfile) {
-        // If not my profile, fetch user from API
+    const fetchAll = async () => {
+      try {
+        // 1) Always fetch from the server
         const fetchedUser = await getUserById(viewedUserId, token);
         setProfileOwner(fetchedUser);
-      } else {
-        // If it's my profile, just set it to loggedInUser
-        setProfileOwner(loggedInUser);
-      }
 
-      // Now fetch user’s polls
-      await fetchUserPolls(token, viewedUserId);
-    } catch (err) {
-      console.error('Error fetching profile data:', err);
-    }
-  };
+        // 2) Fetch stats for that user
+        fetchStats(viewedUserId, token);
+
+        // 3) Fetch user polls
+        await fetchUserPolls(token, viewedUserId);
+
+        // If you want the votes tab to be pre-fetched, you could also call fetchUserVotedPolls
+        // but typically you fetch them only if the user taps the Votes tab.
+      } catch (err) {
+        console.error('Error fetching profile data:', err);
+      }
+    };
+
+    fetchAll();
+  }, [viewedUserId, token]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Voting logic
   // ─────────────────────────────────────────────────────────────────────────────
   const handleVote = (pollId, optionId) => {
     if (!loggedInUser?.id) return;
-    // We use websockets to cast a vote
     sendVoteWS(loggedInUser.id, pollId, optionId);
   };
 
@@ -126,7 +136,6 @@ export default function ProfileScreen() {
     } else if (tab === TABS.COMMENTS) {
       try {
         const data = await getUserComments(viewedUserId, token);
-        // Group them by poll
         const groupedMap = {};
         data.forEach((comment) => {
           const p = comment.poll;
@@ -157,13 +166,9 @@ export default function ProfileScreen() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Poll Modals & Edit Profile
+  // Poll Modals
   // ─────────────────────────────────────────────────────────────────────────────
-  const pollModalsRef = useRef(null);
-  const editProfileRef = useRef(null);
-
   const handleOpenMenu = (poll) => {
-    // Only open modals if it's my profile
     if (!isMyProfile) return;
     pollModalsRef.current?.openMenu(poll);
   };
@@ -196,13 +201,21 @@ export default function ProfileScreen() {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Edit Profile
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleSaveProfile = (updatedUser) => {
-    // If you have a real API call, do it here
+    // If it's MY profile, also update the AuthContext user
+    if (isMyProfile) {
+      login(updatedUser, token); // ensures the new data persists in your context
+    }
+    // Update local state
     setProfileOwner(updatedUser);
-    // Optionally update context or do something else
   };
 
-  // If we haven't loaded the user yet
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Return / Render
+  // ─────────────────────────────────────────────────────────────────────────────
   if (!profileOwner) {
     return (
       <View style={styles.center}>
@@ -211,69 +224,78 @@ export default function ProfileScreen() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render tab content
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Check if we have a displayName
+  const hasDisplayName =
+    profileOwner.displayName && profileOwner.displayName.trim() !== '';
+
+  // Renders the correct tab content
   const renderTabContent = () => {
     if (loading) {
-      return <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} size="large" />;
+      return (
+        <ActivityIndicator
+          style={{ marginTop: 20 }}
+          color={colors.primary}
+          size="large"
+        />
+      );
     }
     if (error) {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
-    if (selectedTab === TABS.POLLS) {
-      return (
-        <FlatList
-          data={userPolls}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <PollCard
-              poll={item}
-              onVote={handleVote}
-              onOpenMenu={isMyProfile ? handleOpenMenu : undefined}
-            />
-          )}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
-    } else if (selectedTab === TABS.VOTES) {
-      return (
-        <FlatList
-          data={votedPolls}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => <VoteCard poll={item} user={loggedInUser} />}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
-    } else if (selectedTab === TABS.COMMENTS) {
-      return (
-        <FlatList
-          data={commentsGroupedByPoll}
-          keyExtractor={(item) => item.pollId.toString()}
-          renderItem={({ item }) => (
-            <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
-          )}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-      );
+    switch (selectedTab) {
+      case TABS.POLLS:
+        return (
+          <FlatList
+            data={userPolls}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <PollCard
+                poll={item}
+                onVote={handleVote}
+                onOpenMenu={isMyProfile ? handleOpenMenu : undefined}
+              />
+            )}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      case TABS.VOTES:
+        return (
+          <FlatList
+            data={votedPolls}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => <VoteCard poll={item} user={loggedInUser} />}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      case TABS.COMMENTS:
+        return (
+          <FlatList
+            data={commentsGroupedByPoll}
+            keyExtractor={(item) => item.pollId.toString()}
+            renderItem={({ item }) => (
+              <CommentCard
+                poll={item.poll}
+                userComments={item.userComments}
+                user={loggedInUser}
+              />
+            )}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        );
+      default:
+        return null;
     }
-    return null;
   };
 
   // Basic follow logic if not my profile (optional)
   const handleFollowToggle = () => {
     setIsFollowing(!isFollowing);
-    // You could call follow/unfollow logic here if you wanted
   };
-
-  // If you'd like to show the "Follow" button on your own profile if routeParams is not you
-  // or if isMyProfile is false, etc.
-
-  const showSummary = profileOwner.personalSummary && profileOwner.personalSummary.trim() !== '';
 
   return (
     <View style={styles.container}>
+      {/* Header: Profile info */}
       <View style={styles.profileHeader}>
         <View style={styles.picContainer}>
           <Image
@@ -304,14 +326,28 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <Text style={styles.username}>@{profileOwner.username || 'Unknown'}</Text>
+        {/* If there's a displayName, show it big, else show username big */}
+        {hasDisplayName ? (
+          <>
+            <Text style={styles.displayName}>{profileOwner.displayName}</Text>
+            <Text style={styles.usernameSubtitle}>
+              @{profileOwner.username || 'Unknown'}
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.usernameTitle}>
+            @{profileOwner.username || 'Unknown'}
+          </Text>
+        )}
+
+        {/* Personal summary (only if my profile) */}
         {isMyProfile ? (
           <Text style={styles.summaryText}>
             {profileOwner.personalSummary || 'No personal summary yet.'}
           </Text>
         ) : null}
 
-        {/* Stats from useUserStatsStore */}
+        {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{followers}</Text>
@@ -332,6 +368,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Tabs */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
           style={[styles.tabButton, selectedTab === TABS.POLLS && styles.activeTabButton]}
@@ -376,9 +413,10 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Tab Content */}
       <View style={styles.tabContent}>{renderTabContent()}</View>
 
-      {/* PollModalsManager (only if my profile) */}
+      {/* Poll Modals (only if my profile) */}
       {isMyProfile && (
         <PollModalsManager
           ref={pollModalsRef}
@@ -387,7 +425,7 @@ export default function ProfileScreen() {
         />
       )}
 
-      {/* EditProfileModal (only if my profile) */}
+      {/* Edit Profile Modal (only if my profile) */}
       {isMyProfile && (
         <EditProfileModal
           ref={editProfileRef}
@@ -398,6 +436,8 @@ export default function ProfileScreen() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -441,12 +481,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  username: {
+
+  // If no displayName, show the username as big text
+  usernameTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: colors.light,
     marginBottom: 4,
   },
+  // If displayName is present, it becomes the big title, username smaller
+  displayName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.light,
+    marginBottom: 2,
+  },
+  usernameSubtitle: {
+    fontSize: 16,
+    color: colors.light,
+    marginBottom: 4,
+  },
+
   summaryText: {
     fontSize: 14,
     color: colors.light,
@@ -471,6 +526,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ccc',
   },
+
   tabsRow: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',

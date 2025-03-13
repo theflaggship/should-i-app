@@ -34,3 +34,12 @@ export const getUserById = async (userId, token) => {
   });
   return response.data; // This should be the user object
 };
+
+export const updateUserProfile = async (userId, token, payload) => {
+  // payload example:
+  // { displayName, status, personalSummary, profilePicture }
+  const response = await api.put(`/users/${userId}`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data; // { message, user }
+};

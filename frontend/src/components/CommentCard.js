@@ -1,7 +1,7 @@
 // src/components/CommentCard.js
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { MoreHorizontal } from 'react-native-feather';
 import { getTimeElapsed } from '../../utils/timeConversions';
 import colors from '../styles/colors';
@@ -10,6 +10,7 @@ const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
 const CommentCard = ({ poll, userComments, onOpenMenu, user }) => {
   const navigation = useNavigation();
+  const route = useRoute();
 
   if (!poll) {
     return (
@@ -38,6 +39,26 @@ const CommentCard = ({ poll, userComments, onOpenMenu, user }) => {
     });
   };
 
+  const handleNavigateToUserProfile = () => {
+    if (!poll?.user?.id) return;
+
+    const finalUserId = poll.user.id;
+    const currentRouteName = route.name;
+    const currentUserId = route.params?.userId;
+    const myUserId = user?.id;
+
+    // ... logic to skip if we’re on that same user’s profile ...
+    if (currentRouteName === 'OtherUserProfile' && currentUserId === finalUserId) {
+      return;
+    }
+    if ((currentRouteName === 'ProfileMain' || currentRouteName === 'Profile') && myUserId === finalUserId) {
+      return;
+    }
+
+    // otherwise, navigate
+    navigation.navigate('OtherUserProfile', { userId: finalUserId });
+  };
+
   const handleEllipsisPress = () => {
     if (onOpenMenu) {
       onOpenMenu(poll);
@@ -55,6 +76,7 @@ const CommentCard = ({ poll, userComments, onOpenMenu, user }) => {
         {/* Left side: poll owner's profile + username */}
         <TouchableOpacity
           style={styles.userRowLeft}
+          onPress={handleNavigateToUserProfile}
           activeOpacity={0.8}
           pointerEvents="box-only"
         >
@@ -176,7 +198,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   commentText: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.dark,
     marginRight: 8,
     flexShrink: 1,

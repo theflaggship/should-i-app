@@ -18,6 +18,7 @@ import PollCard from '../../components/PollCard';
 import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
 import PollModalsManager from '../../components/PollModalsManager';
+import EditProfileModal from '../../components/EditProfileModal'; 
 import { getUserById, getUserComments, getUserStats } from '../../services/userService';
 import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
 import colors from '../../styles/colors';
@@ -163,6 +164,7 @@ export default function ProfileScreen() {
   // PollModalsManager usage
   // ─────────────────────────────────────────────────────────────────────────────
   const pollModalsRef = useRef(null);
+  const editProfileRef = useRef(null);
 
   const handleOpenMenu = (poll) => {
     // Only open modals if it's my profile
@@ -198,6 +200,16 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleSaveProfile = (updatedUser) => {
+    // For now, let's just update the context user and local profileOwner
+    // If you have a real API call, do it here
+    setProfileOwner(updatedUser);
+
+    // Also update context:
+    // e.g. login(updatedUser, token);
+    // Or if you store user in Redux, do that
+  };
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Follow logic if not my profile
   // ─────────────────────────────────────────────────────────────────────────────
@@ -205,6 +217,14 @@ export default function ProfileScreen() {
     // call your follow/unfollow API
     setIsFollowing(!isFollowing);
   };
+
+  if (!profileOwner) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Render tab content
@@ -295,7 +315,7 @@ export default function ProfileScreen() {
           {isMyProfile ? (
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => navigation.navigate('EditProfile')}
+              onPress={() => editProfileRef.current?.openEditProfile(profileOwner)}
             >
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
@@ -396,6 +416,14 @@ export default function ProfileScreen() {
           ref={pollModalsRef}
           onDeletePoll={handleDeletePoll}
           onSavePoll={handleSavePoll}
+        />
+      )}
+
+      {/* EditProfileModal (only if my profile) */}
+      {isMyProfile && (
+        <EditProfileModal
+          ref={editProfileRef}
+          onSaveProfile={handleSaveProfile}
         />
       )}
     </View>

@@ -9,7 +9,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { sendVoteWS } from '../services/pollService';
 import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather';
@@ -25,6 +25,7 @@ const PollCard = ({
   showDetailedTimestamp = false,
   onOpenMenu,
 }) => {
+  const route = useRoute();
   const navigation = useNavigation();
   const { user } = useContext(AuthContext);
 
@@ -150,10 +151,24 @@ const PollCard = ({
     }
   };
 
-  // NEW: navigate to user profile stack
   const handleNavigateToUserProfile = () => {
-    if (!finalUser.id) return;
-    navigation.navigate('OtherUserProfile', { userId: finalUser.id });
+    if (!poll?.user?.id) return;
+
+    const finalUserId = poll.user.id;
+    const currentRouteName = route.name;
+    const currentUserId = route.params?.userId;
+    const myUserId = user?.id;
+
+    // ... logic to skip if we’re on that same user’s profile ...
+    if (currentRouteName === 'OtherUserProfile' && currentUserId === finalUserId) {
+      return;
+    }
+    if ((currentRouteName === 'ProfileMain' || currentRouteName === 'Profile') && myUserId === finalUserId) {
+      return;
+    }
+
+    // otherwise, navigate
+    navigation.navigate('OtherUserProfile', { userId: finalUserId });
   };
 
   return (

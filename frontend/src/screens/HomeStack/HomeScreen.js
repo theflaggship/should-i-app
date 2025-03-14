@@ -1,4 +1,6 @@
-import React, { useRef, useContext, useState } from 'react';
+// src/screens/HomeStack/HomeScreen.js
+
+import React, { useRef, useContext, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +10,7 @@ import {
   Animated,
   Dimensions,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../../context/AuthContext';
@@ -20,13 +23,27 @@ import { deletePoll, updatePoll } from '../../services/pollService';
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const { height } = Dimensions.get('window');
 
+const TABS = {
+  DISCOVER: 'DISCOVER',
+  FOLLOWING: 'FOLLOWING',
+};
+
 const HomeScreen = () => {
   const { user, token } = useContext(AuthContext);
-  const polls = usePollsStore((state) => state.polls);
+
+  // ----- Zustand store stuff -----
+  const polls = usePollsStore((state) => state.polls);                 // For "DISCOVER"
+  const followingPolls = usePollsStore((state) => state.followingPolls); // For "FOLLOWING"
+
+  const fetchAllPolls = usePollsStore((state) => state.fetchAllPolls);
+  const fetchFollowingPolls = usePollsStore((state) => state.fetchFollowingPolls);
+
+  const removePoll = usePollsStore((state) => state.removePoll);
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
-  const fetchAllPolls = usePollsStore((state) => state.fetchAllPolls);
-  const removePoll = usePollsStore((state) => state.removePoll);
+
+  // Which tab is selected?
+  const [selectedTab, setSelectedTab] = useState(TABS.DISCOVER);
 
   // For pulling down to refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -43,11 +60,43 @@ const HomeScreen = () => {
   // Reference to our PollModalsManager
   const pollModalsRef = useRef(null);
 
+  // On mount, fetch the initial tab data
+  useEffect(() => {
+    if (token) {
+      // Only fetch if token is defined
+      fetchAllPolls(token).catch((err) => {
+        console.error('Initial fetch error:', err);
+      });
+    }
+  }, [token, fetchAllPolls]);
+
+  // Handler for switching tabs
+  const handleTabPress = async (tab) => {
+    setSelectedTab(tab);
+    setRefreshing(true);
+    try {
+      if (tab === TABS.DISCOVER) {
+        await fetchAllPolls(token);
+      } else {
+        // tab === TABS.FOLLOWING
+        await fetchFollowingPolls(token);
+      }
+    } catch (err) {
+      console.error('Tab fetch error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Pull-to-refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetchAllPolls(token);
+      if (selectedTab === TABS.DISCOVER) {
+        await fetchAllPolls(token);
+      } else {
+        await fetchFollowingPolls(token);
+      }
     } catch (err) {
       console.error('Refresh error:', err);
     } finally {
@@ -57,7 +106,6 @@ const HomeScreen = () => {
 
   // Called by PollCard’s onOpenMenu
   const handleOpenMenu = (poll) => {
-    // Just pass the selected poll to our PollModalsManager
     pollModalsRef.current?.openMenu(poll);
   };
 
@@ -71,7 +119,7 @@ const HomeScreen = () => {
     }
   };
 
-  // Called by the manager to save poll edits (either toggles or full edit)
+  // Called by the manager to save poll edits
   const handleSavePoll = async (poll, payload) => {
     try {
       const result = await updatePoll(token, poll.id, payload);
@@ -100,6 +148,9 @@ const HomeScreen = () => {
     );
   }
 
+  // Decide which array to render
+  const dataToRender = selectedTab === TABS.DISCOVER ? polls : followingPolls;
+
   return (
     <View style={styles.container}>
       {/* Animated Navbar */}
@@ -109,8 +160,45 @@ const HomeScreen = () => {
         <Text style={styles.navTitle}>Whicha</Text>
       </Animated.View>
 
+      {/* Top row for the two tabs */}
+      <View style={styles.tabsRow}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === TABS.DISCOVER && styles.activeTabButton,
+          ]}
+          onPress={() => handleTabPress(TABS.DISCOVER)}
+        >
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === TABS.DISCOVER && styles.activeTabButtonText,
+            ]}
+          >
+            Discover
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === TABS.FOLLOWING && styles.activeTabButton,
+          ]}
+          onPress={() => handleTabPress(TABS.FOLLOWING)}
+        >
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === TABS.FOLLOWING && styles.activeTabButtonText,
+            ]}
+          >
+            Following
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Show spinner if loading and no polls yet */}
-      {loading && polls.length === 0 && (
+      {loading && dataToRender.length === 0 && (
         <ActivityIndicator
           style={{ marginVertical: 20 }}
           color={colors.primary}
@@ -118,7 +206,7 @@ const HomeScreen = () => {
       )}
 
       <AnimatedFlatList
-        data={polls}
+        data={dataToRender}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
           <View
@@ -184,12 +272,36 @@ const styles = StyleSheet.create({
     color: colors.light,
     marginTop: 30,
   },
+  tabsRow: {
+    flexDirection: 'row',
+    marginTop: 100, // so it's below the nav bar
+    backgroundColor: '#f0f0f0',
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  tabButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.dark,
+  },
+  activeTabButton: {
+    borderBottomWidth: 3,
+    borderBottomColor: colors.primary,
+  },
+  activeTabButtonText: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
   pollCardContainer: {
     marginHorizontal: 16,
     marginBottom: 16,
   },
   firstPollCardContainer: {
-    marginTop: 118,
+    // Because we have 2 bars now, we add extra margin
+    marginTop: 16,
     marginHorizontal: 16,
     marginBottom: 16,
   },

@@ -1,5 +1,5 @@
 // controllers/pollController.js
-const { Poll, User, PollOption, Comment, Vote } = require('../models');
+const { Poll, User, PollOption, Comment, Vote, Follow } = require('../models');
 
 // POST /api/polls
 exports.createPoll = async (req, res, next) => {
@@ -44,23 +44,22 @@ exports.getAllPolls = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: 'user', // must match Poll.belongsTo(User, { as: 'user' })
+          as: 'user',
           attributes: ['id', 'username', 'profilePicture'],
         },
         {
           model: PollOption,
-          as: 'options', // must match Poll.hasMany(PollOption, { as: 'options' })
+          as: 'options',
           attributes: ['id', 'optionText', 'votes', 'sortOrder'],
           separate: true,
           order: [['sortOrder', 'ASC']],
         },
         {
           model: Comment,
-          as: 'comments', // must match Poll.hasMany(Comment, { as: 'comments' })
+          as: 'comments',
           attributes: ['id', 'commentText', 'createdAt'],
           include: [
             {
-              // must match Comment.belongsTo(User, { as: 'user' })
               model: User,
               as: 'user',
               attributes: ['id', 'username', 'profilePicture'],
@@ -84,6 +83,113 @@ exports.getAllPolls = async (req, res, next) => {
     }
 
     // Transform
+    const data = polls.map((poll) => {
+      const userVote = userVotesByPollId[poll.id] || null;
+      return {
+        id: poll.id,
+        question: poll.question,
+        createdAt: poll.createdAt,
+        allowComments: poll.allowComments,
+        commentCount: poll.comments?.length || 0,
+        userVote,
+        user: poll.user
+          ? {
+              id: poll.user.id,
+              username: poll.user.username,
+              profilePicture: poll.user.profilePicture,
+            }
+          : null,
+        options: (poll.options || []).map((opt) => ({
+          id: opt.id,
+          text: opt.optionText,
+          votes: opt.votes,
+        })),
+        comments: (poll.comments || []).map((c) => ({
+          id: c.id,
+          text: c.commentText,
+          createdAt: c.createdAt,
+          user: c.user
+            ? {
+                id: c.user.id,
+                username: c.user.username,
+                profilePicture: c.user.profilePicture,
+              }
+            : null,
+        })),
+      };
+    });
+
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/polls/following - Retrieve polls from users you follow
+exports.getFollowingPolls = async (req, res, next) => {
+  try {
+    const requestingUserId = req.user?.id;
+    if (!requestingUserId) {
+      return res
+        .status(401)
+        .json({ error: 'You must be logged in to view following polls.' });
+    }
+
+    // 1) Find the user IDs that this user is following
+    const follows = await Follow.findAll({
+      where: { followerId: requestingUserId },
+      attributes: ['followingId'],
+    });
+    const followingIds = follows.map((f) => f.followingId);
+
+    if (!followingIds.length) {
+      // If not following anyone, just return an empty array
+      return res.status(200).json([]);
+    }
+
+    // 2) Find polls created by these followed users
+    const polls = await Poll.findAll({
+      where: { userId: followingIds },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'profilePicture'],
+        },
+        {
+          model: PollOption,
+          as: 'options',
+          attributes: ['id', 'optionText', 'votes', 'sortOrder'],
+          separate: true,
+          order: [['sortOrder', 'ASC']],
+        },
+        {
+          model: Comment,
+          as: 'comments',
+          attributes: ['id', 'commentText', 'createdAt'],
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'username', 'profilePicture'],
+            },
+          ],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    // 3) If user is logged in, find all votes for these poll IDs
+    let userVotesByPollId = {};
+    const pollIds = polls.map((p) => p.id);
+    const userVotes = await Vote.findAll({
+      where: { userId: requestingUserId, pollId: pollIds },
+    });
+    userVotes.forEach((vote) => {
+      userVotesByPollId[vote.pollId] = vote.pollOptionId;
+    });
+
+    // 4) Transform results
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
       return {
@@ -228,6 +334,7 @@ exports.updatePoll = async (req, res, next) => {
     });
 
     if (Array.isArray(req.body.options)) {
+      // Remove existing options
       await PollOption.destroy({ where: { pollId: poll.id } });
       const newOptions = req.body.options.map((opt, index) => ({
         pollId: poll.id,

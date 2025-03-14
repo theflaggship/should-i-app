@@ -6,7 +6,8 @@ exports.getUserProfile = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const user = await User.findByPk(userId, {
-      attributes: { exclude: ['password'] },
+      attributes: { exclude: ['password'] }, 
+      // This includes displayName, status, personalSummary, profilePicture
     });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -34,19 +35,35 @@ exports.getUserProfile = async (req, res, next) => {
 // PUT /api/users/:id - Update a user profile
 exports.updateUserProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const userId = parseInt(req.params.id, 10);
+    const user = await User.findByPk(userId);
     if (!user) {
-      const err = new Error('User not found');
-      err.status = 404;
-      return next(err);
+      return res.status(404).json({ error: 'User not found' });
     }
-    await user.update(req.body);
-    res.status(200).json({ message: 'User updated successfully', user });
+
+    // Only update the fields we allow
+    const {
+      displayName,
+      status,
+      personalSummary,
+      profilePicture
+    } = req.body;
+
+    if (displayName !== undefined) user.displayName = displayName;
+    if (status !== undefined) user.status = status;
+    if (personalSummary !== undefined) user.personalSummary = personalSummary;
+    if (profilePicture !== undefined) user.profilePicture = profilePicture;
+
+    await user.save();
+
+    return res.status(200).json({
+      message: 'User updated successfully',
+      user,
+    });
   } catch (error) {
     next(error);
   }
 };
-
 
 // GET /api/users/:id/polls
 exports.getUserPolls = async (req, res, next) => {
@@ -60,7 +77,7 @@ exports.getUserPolls = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture'], 
         },
         {
           model: PollOption,
@@ -70,9 +87,8 @@ exports.getUserPolls = async (req, res, next) => {
           order: [['sortOrder', 'ASC']],
         },
         {
-          // Attach comments using the correct alias
           model: Comment,
-          as: 'comments', // <-- THIS is critical
+          as: 'comments',
           attributes: ['id', 'commentText', 'createdAt'],
           include: [
             { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
@@ -145,13 +161,11 @@ exports.getUserComments = async (req, res, next) => {
     const userId = req.params.id;
     const comments = await Comment.findAll({
       where: { userId },
-      // Include the poll data so we can display poll question, etc.
       include: [
         {
           model: Poll,
           as: 'poll',
           attributes: ['id', 'question', 'createdAt'],
-          // optionally also include poll's user if needed
           include: [
             { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
           ]
@@ -181,31 +195,26 @@ exports.getUserVotes = async (req, res, next) => {
       order: [['createdAt', 'DESC']],
       include: [
         {
-          // Must match Vote.belongsTo(PollOption, { as: 'pollOption' })
           model: PollOption,
           as: 'pollOption',
-          attributes: ['id', 'optionText', 'votes', 'pollId', 'sortOrder'], // <--- INCLUDE sortOrder
+          attributes: ['id', 'optionText', 'votes', 'pollId', 'sortOrder'],
           include: [
             {
-              // Must match PollOption.belongsTo(Poll, { as: 'poll' })
               model: Poll,
               as: 'poll',
               attributes: ['id', 'question', 'createdAt', 'allowComments'],
               include: [
                 {
-                  // Must match Poll.belongsTo(User, { as: 'user' })
                   model: User,
                   as: 'user',
                   attributes: ['id', 'username', 'profilePicture'],
                 },
                 {
-                  // Must match Poll.hasMany(PollOption, { as: 'options' })
                   model: PollOption,
                   as: 'options',
-                  attributes: ['id', 'optionText', 'votes', 'sortOrder'], // <--- INCLUDE sortOrder here too
+                  attributes: ['id', 'optionText', 'votes', 'sortOrder'],
                 },
                 {
-                  // Must match Poll.hasMany(Comment, { as: 'comments' })
                   model: Comment,
                   as: 'comments',
                   attributes: ['id', 'commentText', 'createdAt'],
@@ -222,7 +231,6 @@ exports.getUserVotes = async (req, res, next) => {
           ],
         },
         {
-          // Must match Vote.belongsTo(User, { as: 'user' })
           model: User,
           as: 'user',
           attributes: ['id', 'username', 'profilePicture'],
@@ -256,14 +264,12 @@ exports.getUserVotes = async (req, res, next) => {
               profilePicture: poll.user.profilePicture,
             }
           : null,
-        // Attach options, including sortOrder
         options: (poll.options || []).map((opt) => ({
           id: opt.id,
           text: opt.optionText,
           votes: opt.votes,
           sortOrder: opt.sortOrder,
         })),
-        // Attach comments if you like
         comments: (poll.comments || []).map((c) => ({
           id: c.id,
           text: c.commentText,
@@ -287,29 +293,21 @@ exports.getUserVotes = async (req, res, next) => {
   }
 };
 
-
 // GET /api/users/:id/stats
 exports.getUserStats = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
 
-    // 1) Ensure the user exists (optional, but recommended)
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // 2) Count total polls
     const totalPolls = await Poll.count({ where: { userId } });
-
-    // 3) Count total votes
     const totalVotes = await Vote.count({ where: { userId } });
-
-    // 4) Count followers & following
     const followers = await Follow.count({ where: { followingId: userId } });
     const following = await Follow.count({ where: { followerId: userId } });
 
-    // 5) Return stats
     return res.status(200).json({
       followers,
       following,
@@ -320,4 +318,3 @@ exports.getUserStats = async (req, res, next) => {
     next(error);
   }
 };
-

@@ -1,7 +1,8 @@
 // src/services/pollService.js
+
 import api from './api';
 
-let voteSocket; // Vote WebSocket
+let voteSocket;    // Vote WebSocket
 let commentSocket; // Comment WebSocket
 
 // --------------------
@@ -10,6 +11,17 @@ let commentSocket; // Comment WebSocket
 export const getPolls = async (token) => {
   try {
     const response = await api.get('/polls', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFollowingPolls = async (token) => {
+  try {
+    const response = await api.get('/polls/following', {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
@@ -55,12 +67,12 @@ export const updatePoll = async (token, pollId, data) => {
     const response = await api.put(`/polls/${pollId}`, data, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return response.data; // e.g. { message: 'Poll updated successfully', poll: {...} }
+    // e.g. { message: 'Poll updated successfully', poll: {...} }
+    return response.data;
   } catch (error) {
     throw error;
   }
 };
-
 
 // -----------------------
 // Comment REST API Calls

@@ -9,6 +9,8 @@ module.exports = (sequelize, DataTypes) => {
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     profilePicture: { type: DataTypes.STRING },
     personalSummary: { type: DataTypes.TEXT },
+    displayName: { type: DataTypes.STRING, allowNull: true },
+    status: { type: DataTypes.TEXT, allowNull: true },
   }, {});
 
   return User;

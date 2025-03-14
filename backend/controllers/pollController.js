@@ -91,6 +91,7 @@ exports.getAllPolls = async (req, res, next) => {
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
         commentCount: poll.comments?.length || 0,
+        isPrivate: poll.isPrivate,
         userVote,
         user: poll.user
           ? {
@@ -199,6 +200,7 @@ exports.getFollowingPolls = async (req, res, next) => {
         allowComments: poll.allowComments,
         commentCount: poll.comments?.length || 0,
         userVote,
+        isPrivate: poll.isPrivate, 
         user: poll.user
           ? {
               id: poll.user.id,
@@ -295,6 +297,7 @@ exports.getPollById = async (req, res, next) => {
           }
         : null,
       userVote,
+      isPrivate: poll.isPrivate, 
       options: (poll.options || []).map((opt) => ({
         id: opt.id,
         text: opt.optionText,

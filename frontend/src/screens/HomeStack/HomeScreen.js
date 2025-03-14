@@ -153,12 +153,14 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Animated Navbar */}
-      <Animated.View
-        style={[styles.navbar, { transform: [{ translateY: navbarTranslate }] }]}
+      {/* <Animated.View
+        style={[{ transform: [{ translateY: navbarTranslate }] }]}
       >
+        </Animated.View> */}
+      <View style={styles.navbar}>
         <Text style={styles.navTitle}>Whicha</Text>
-      </Animated.View>
+      </View>
+      {/* Animated Navbar */}
 
       {/* Top row for the two tabs */}
       <View style={styles.tabsRow}>

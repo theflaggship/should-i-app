@@ -1,4 +1,5 @@
 // src/screens/OtherUserProfileScreen.js
+
 import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
@@ -75,9 +76,7 @@ export default function OtherUserProfileScreen() {
   // Track if we are currently following this user
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // On mount (or if viewedUserId changes), fetch user data & stats
-  // ─────────────────────────────────────────────────────────────────────────────
+  // On mount or if viewedUserId changes, fetch user data & stats
   useEffect(() => {
     if (!viewedUserId) return;
     fetchDataForUser();
@@ -95,7 +94,7 @@ export default function OtherUserProfileScreen() {
       if (typeof fetchedUser.amIFollowing === 'boolean') {
         setIsFollowing(fetchedUser.amIFollowing);
       } else {
-        // If not provided, you might do a separate call or default to false
+        // If not provided, default to false or do a separate call
         setIsFollowing(false);
       }
 
@@ -106,9 +105,7 @@ export default function OtherUserProfileScreen() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // Tab switching logic
-  // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
 
@@ -148,9 +145,7 @@ export default function OtherUserProfileScreen() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // Follow/Unfollow logic
-  // ─────────────────────────────────────────────────────────────────────────────
   const handleFollowToggle = async () => {
     if (!viewedUserId || !token) return;
 
@@ -177,9 +172,7 @@ export default function OtherUserProfileScreen() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render tab content
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Render tab content with "no data" messages
   const renderTabContent = () => {
     if (loading) {
       return (
@@ -194,39 +187,72 @@ export default function OtherUserProfileScreen() {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
-    switch (selectedTab) {
-      case TABS.POLLS:
+    // 1) Polls tab
+    if (selectedTab === TABS.POLLS) {
+      if (userPolls.length === 0) {
         return (
-          <FlatList
-            data={userPolls}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => <PollCard poll={item} disableMainPress={false} />}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              This user hasn't posted any polls yet.
+            </Text>
+          </View>
         );
-      case TABS.VOTES:
-        return (
-          <FlatList
-            data={votedPolls}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => <VoteCard poll={item} />}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-        );
-      case TABS.COMMENTS:
-        return (
-          <FlatList
-            data={commentsGroupedByPoll}
-            keyExtractor={(item) => item.pollId.toString()}
-            renderItem={({ item }) => (
-              <CommentCard poll={item.poll} userComments={item.userComments} />
-            )}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-        );
-      default:
-        return null;
+      }
+      return (
+        <FlatList
+          data={userPolls}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => <PollCard poll={item} disableMainPress={false} />}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
+      );
     }
+
+    // 2) Votes tab
+    if (selectedTab === TABS.VOTES) {
+      if (votedPolls.length === 0) {
+        return (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              This user hasn't voted on any polls yet.
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={votedPolls}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => <VoteCard poll={item} />}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
+      );
+    }
+
+    // 3) Comments tab
+    if (selectedTab === TABS.COMMENTS) {
+      if (commentsGroupedByPoll.length === 0) {
+        return (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              This user hasn't made any comments yet.
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={commentsGroupedByPoll}
+          keyExtractor={(item) => item.pollId.toString()}
+          renderItem={({ item }) => (
+            <CommentCard poll={item.poll} userComments={item.userComments} />
+          )}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
+      );
+    }
+
+    return null;
   };
 
   // If we haven't loaded the user yet
@@ -238,9 +264,7 @@ export default function OtherUserProfileScreen() {
     );
   }
 
-  const showSummary =
-    profileOwner.personalSummary &&
-    profileOwner.personalSummary.trim() !== '';
+  const showSummary = profileOwner.personalSummary && profileOwner.personalSummary.trim() !== '';
 
   return (
     <View style={styles.container}>
@@ -264,15 +288,15 @@ export default function OtherUserProfileScreen() {
               styles.followButton,
               isFollowing
                 ? {
-                  backgroundColor: '#2a3d52',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }
+                    backgroundColor: '#2a3d52',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }
                 : {
-                  backgroundColor: '#21D0B2',
-                  right: 20,
-                },
+                    backgroundColor: '#21D0B2',
+                    right: 20,
+                  },
             ]}
             onPress={handleFollowToggle}
           >
@@ -293,7 +317,6 @@ export default function OtherUserProfileScreen() {
               />
             )}
           </TouchableOpacity>
-
         </View>
 
         <Text style={styles.username}>@{profileOwner.username || 'Unknown'}</Text>
@@ -486,5 +509,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+
+  // "No data" fallback styling
+  noDataContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: colors.dark,
+    textAlign: 'center',
   },
 });

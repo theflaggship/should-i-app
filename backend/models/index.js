@@ -141,7 +141,7 @@ User.belongsToMany(User, {
   as: 'followers',
   through: Follow,
   foreignKey: 'followingId',
-  otherKey: 'followerId',  
+  otherKey: 'followerId',
 });
 
 User.belongsToMany(User, {
@@ -150,6 +150,10 @@ User.belongsToMany(User, {
   foreignKey: 'followerId',
   otherKey: 'followingId',
 });
+
+// Associate Follow with both sides of the relationship
+Follow.belongsTo(User, { as: 'follower', foreignKey: 'followerId' });
+Follow.belongsTo(User, { as: 'following', foreignKey: 'followingId' });
 
 // 5. Export the Sequelize instance and all models
 module.exports = {
@@ -162,5 +166,5 @@ module.exports = {
   Category,
   PollCategory,
   PollAllowedUsers,
-  Follow
+  Follow,
 };

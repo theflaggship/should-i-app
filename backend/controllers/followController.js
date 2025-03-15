@@ -1,5 +1,5 @@
 // src/controllers/followController.js
-const { Follow } = require('../models');
+const { Follow, User } = require('../models');
 
 /**
  * POST /api/follow
@@ -8,7 +8,7 @@ const { Follow } = require('../models');
  */
 exports.followUser = async (req, res, next) => {
   try {
-    const followerId = req.user.id;         // from verifyToken
+    const followerId = req.user.id; // from verifyToken
     const { followingId } = req.body;
 
     if (!followingId) {
@@ -60,16 +60,28 @@ exports.unfollowUser = async (req, res, next) => {
 
 /**
  * GET /api/follow/:id/followers
- * - Returns all rows in Follow where followingId = :id
- *   i.e. "all users who follow user :id"
+ * - Returns an array of user objects who follow user :id
+ *   (i.e., all rows in Follow where followingId = :id)
  */
 exports.getFollowers = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
-    const followers = await Follow.findAll({
+
+    // Join with the "follower" user
+    const followRecords = await Follow.findAll({
       where: { followingId: userId },
+      include: [
+        {
+          model: User,
+          as: 'follower', // must match your association
+          attributes: ['id', 'username', 'displayName', 'profilePicture', 'personalSummary'],
+        },
+      ],
     });
-    // Optionally, do a join to get user details
+
+    // Map to an array of user objects
+    const followers = followRecords.map((record) => record.follower).filter(Boolean);
+
     return res.status(200).json(followers);
   } catch (error) {
     next(error);
@@ -78,16 +90,28 @@ exports.getFollowers = async (req, res, next) => {
 
 /**
  * GET /api/follow/:id/following
- * - Returns all rows in Follow where followerId = :id
- *   i.e. "all users that user :id is following"
+ * - Returns an array of user objects that user :id is following
+ *   (i.e., all rows in Follow where followerId = :id)
  */
 exports.getFollowing = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
-    const following = await Follow.findAll({
+
+    // Join with the "following" user
+    const followRecords = await Follow.findAll({
       where: { followerId: userId },
+      include: [
+        {
+          model: User,
+          as: 'following', // must match your association
+          attributes: ['id', 'username', 'displayName', 'profilePicture', 'personalSummary'],
+        },
+      ],
     });
-    // Optionally, do a join to get user details
+
+    // Map to an array of user objects
+    const following = followRecords.map((record) => record.following).filter(Boolean);
+
     return res.status(200).json(following);
   } catch (error) {
     next(error);

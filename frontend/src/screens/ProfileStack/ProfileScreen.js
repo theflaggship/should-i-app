@@ -1,4 +1,5 @@
 // src/screens/ProfileScreen.js
+
 import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -10,9 +11,9 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native'; // import useNavigation
 import { AuthContext } from '../../context/AuthContext';
-import { usePollsStore } from '../../store/usePollsStore'; // assume store handles polls, votes, comments
+import { usePollsStore } from '../../store/usePollsStore';
 import { useUserStatsStore } from '../../store/useUserStatsStore';
 import PollCard from '../../components/PollCard';
 import VoteCard from '../../components/VoteCard';
@@ -28,11 +29,11 @@ const TABS = {
 };
 
 export default function ProfileScreen() {
+  const navigation = useNavigation(); // Access navigation
   const { user: loggedInUser, token, login } = useContext(AuthContext);
 
-  // ----- Polls Store (example: we assume it also handles user comments) -----
+  // ----- Polls Store -----
   const {
-    // For polls
     userPolls,
     userPollOffset,
     userPollPageSize,
@@ -40,7 +41,6 @@ export default function ProfileScreen() {
     fetchUserPollsPage,
     loadMoreUserPolls,
 
-    // For votes
     votedPolls,
     userVotedOffset,
     userVotedPageSize,
@@ -48,15 +48,13 @@ export default function ProfileScreen() {
     fetchUserVotesPage,
     loadMoreUserVotedPolls,
 
-    // For comments
-    userComments,             // array of comment objects or grouped data
+    userComments,
     userCommentOffset,
     userCommentPageSize,
     userCommentTotalCount,
     fetchUserCommentsPage,
     loadMoreUserComments,
 
-    // Common
     loading,
     error,
     removePoll,
@@ -76,8 +74,6 @@ export default function ProfileScreen() {
 
   // Which tab is selected?
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
-
-  // Local state for pull-to-refresh
   const [refreshing, setRefreshing] = useState(false);
 
   // Refs for modals
@@ -89,9 +85,7 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loggedInUser?.id) return;
-    // 1) fetch stats
     fetchStats(loggedInUser.id, token);
-    // 2) fetch first page of user polls
     fetchUserPollsPage(token, loggedInUser.id, userPollPageSize, 0);
   }, [loggedInUser?.id, token]);
 
@@ -103,9 +97,8 @@ export default function ProfileScreen() {
       if (!loggedInUser?.id) return;
 
       if (selectedTab === TABS.POLLS) {
-        // Optionally refresh polls if needed
+        // optionally refresh
       } else if (selectedTab === TABS.VOTES) {
-        // fetch first page of voted polls if not loaded
         fetchUserVotesPage(token, loggedInUser.id, userVotedPageSize, 0);
       } else if (selectedTab === TABS.COMMENTS) {
         fetchUserCommentsPage(token, loggedInUser.id, userCommentPageSize, 0);
@@ -163,7 +156,6 @@ export default function ProfileScreen() {
 
   const handleDeletePoll = async (pollToDelete) => {
     try {
-      // Actually delete on server
       // e.g. deletePoll(token, pollToDelete.id)
       removePoll(pollToDelete.id, loggedInUser.id, token);
     } catch (err) {
@@ -175,7 +167,6 @@ export default function ProfileScreen() {
     try {
       // e.g. const result = await updatePoll(token, pollToEdit.id, payload);
       // if (result.poll) { updatePollInBoth(...) }
-      // ...
       console.log('handleSavePoll with payload:', payload);
     } catch (err) {
       console.error('Failed to update poll:', err);
@@ -256,8 +247,6 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   const renderTabContent = () => {
     if (loading && selectedTab !== TABS.COMMENTS) {
-      // If it's loading and we have no data for polls or votes
-      // (You might do a separate check for each array)
       if (
         (selectedTab === TABS.POLLS && userPolls.length === 0) ||
         (selectedTab === TABS.VOTES && votedPolls.length === 0)
@@ -276,9 +265,7 @@ export default function ProfileScreen() {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
     // Polls Tab
-    // ──────────────────────────────────────────────────────────────────────────
     if (selectedTab === TABS.POLLS) {
       if (userPolls.length === 0) {
         return (
@@ -294,11 +281,7 @@ export default function ProfileScreen() {
           data={userPolls}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <PollCard
-              poll={item}
-              onVote={handleVote}
-              onOpenMenu={handleOpenMenu}
-            />
+            <PollCard poll={item} onVote={handleVote} onOpenMenu={handleOpenMenu} />
           )}
           contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
@@ -313,16 +296,17 @@ export default function ProfileScreen() {
           onEndReached={handleLoadMorePolls}
           ListFooterComponent={
             loading && userPolls.length > 0 ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginVertical: 10 }}
+              />
             ) : null
           }
         />
       );
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
     // Votes Tab
-    // ──────────────────────────────────────────────────────────────────────────
     if (selectedTab === TABS.VOTES) {
       if (votedPolls.length === 0) {
         return (
@@ -337,12 +321,7 @@ export default function ProfileScreen() {
         <FlatList
           data={votedPolls}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <VoteCard
-              poll={item}
-              user={loggedInUser}
-            />
-          )}
+          renderItem={({ item }) => <VoteCard poll={item} user={loggedInUser} />}
           contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
             <RefreshControl
@@ -356,16 +335,17 @@ export default function ProfileScreen() {
           onEndReached={handleLoadMoreVotes}
           ListFooterComponent={
             loading && votedPolls.length > 0 ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginVertical: 10 }}
+              />
             ) : null
           }
         />
       );
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
     // Comments Tab
-    // ──────────────────────────────────────────────────────────────────────────
     if (selectedTab === TABS.COMMENTS) {
       if (userComments.length === 0) {
         return (
@@ -381,11 +361,7 @@ export default function ProfileScreen() {
           data={userComments}
           keyExtractor={(item) => item.pollId.toString()}
           renderItem={({ item }) => (
-            <CommentCard
-              poll={item.poll}
-              userComments={item.userComments}
-              user={loggedInUser}
-            />
+            <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
           )}
           contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
@@ -400,7 +376,10 @@ export default function ProfileScreen() {
           onEndReached={handleLoadMoreComments}
           ListFooterComponent={
             loading && userComments.length > 0 ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginVertical: 10 }}
+              />
             ) : null
           }
         />
@@ -451,20 +430,43 @@ export default function ProfileScreen() {
           {loggedInUser.personalSummary || 'No personal summary yet.'}
         </Text>
 
-        {/* Stats */}
+        {/* Stats Row */}
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
+          {/* Followers */}
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() =>
+              navigation.navigate('FollowersFollowingScreen', {
+                userId: loggedInUser.id,
+                mode: 'followers',
+              })
+            }
+          >
             <Text style={styles.statNumber}>{followers}</Text>
             <Text style={styles.statLabel}>Followers</Text>
-          </View>
-          <View style={styles.statItem}>
+          </TouchableOpacity>
+
+          {/* Following */}
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() =>
+              navigation.navigate('FollowersFollowingScreen', {
+                userId: loggedInUser.id,
+                mode: 'following',
+              })
+            }
+          >
             <Text style={styles.statNumber}>{following}</Text>
             <Text style={styles.statLabel}>Following</Text>
-          </View>
+          </TouchableOpacity>
+
+          {/* Polls */}
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{totalPolls}</Text>
             <Text style={styles.statLabel}>Polls</Text>
           </View>
+
+          {/* Total Votes */}
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{totalVotes}</Text>
             <Text style={styles.statLabel}>Total Votes</Text>
@@ -528,10 +530,7 @@ export default function ProfileScreen() {
       />
 
       {/* Edit Profile Modal */}
-      <EditProfileModal
-        ref={editProfileRef}
-        onSaveProfile={handleSaveProfile}
-      />
+      <EditProfileModal ref={editProfileRef} onSaveProfile={handleSaveProfile} />
     </View>
   );
 }

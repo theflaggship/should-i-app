@@ -71,13 +71,20 @@ exports.getUserPolls = async (req, res, next) => {
     const userId = parseInt(req.params.id, 10);
     const requestingUserId = req.user?.id;
 
-    const polls = await Poll.findAll({
+    // 1) Parse pagination params
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // 2) Find & count polls by userId
+    const { rows: polls, count: totalCount } = await Poll.findAndCountAll({
       where: { userId },
+      limit,
+      offset,
       include: [
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'], 
+          attributes: ['id', 'username', 'profilePicture'],
         },
         {
           model: PollOption,
@@ -91,14 +98,18 @@ exports.getUserPolls = async (req, res, next) => {
           as: 'comments',
           attributes: ['id', 'commentText', 'createdAt'],
           include: [
-            { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
-          ]
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'username', 'profilePicture'],
+            },
+          ],
         },
       ],
       order: [['createdAt', 'DESC']],
     });
 
-    // (Optional) If the requesting user is logged in, find their votes:
+    // 3) If the requesting user is logged in, find their votes
     let userVotesByPollId = {};
     if (requestingUserId) {
       const pollIds = polls.map((p) => p.id);
@@ -110,7 +121,7 @@ exports.getUserPolls = async (req, res, next) => {
       });
     }
 
-    // Transform each poll if you want
+    // 4) Transform each poll
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
       const commentCount = poll.comments?.length || 0;
@@ -120,6 +131,7 @@ exports.getUserPolls = async (req, res, next) => {
         question: poll.question,
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
+        isPrivate: poll.isPrivate,
         commentCount,
         userVote,
         user: poll.user
@@ -129,7 +141,7 @@ exports.getUserPolls = async (req, res, next) => {
               profilePicture: poll.user.profilePicture,
             }
           : null,
-        options: poll.options.map((opt) => ({
+        options: (poll.options || []).map((opt) => ({
           id: opt.id,
           text: opt.optionText,
           votes: opt.votes,
@@ -138,18 +150,22 @@ exports.getUserPolls = async (req, res, next) => {
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
-          User: c.user
+          user: c.user
             ? {
                 id: c.user.id,
                 username: c.user.username,
                 profilePicture: c.user.profilePicture,
               }
-            : null
+            : null,
         })),
       };
     });
 
-    res.status(200).json(data);
+    // 5) Return result with pagination metadata
+    return res.status(200).json({
+      totalCount,
+      polls: data,
+    });
   } catch (error) {
     next(error);
   }
@@ -158,17 +174,27 @@ exports.getUserPolls = async (req, res, next) => {
 // GET /api/users/:id/comments - Retrieve all comments made by the user
 exports.getUserComments = async (req, res, next) => {
   try {
-    const userId = req.params.id;
-    const comments = await Comment.findAll({
+    const userId = parseInt(req.params.id, 10);
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // 1) Find & count all comments by this user
+    const { rows: comments, count: totalCount } = await Comment.findAndCountAll({
       where: { userId },
+      limit,
+      offset,
       include: [
         {
           model: Poll,
           as: 'poll',
           attributes: ['id', 'question', 'createdAt'],
           include: [
-            { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture'] }
-          ]
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'username', 'profilePicture'],
+            },
+          ],
         },
         {
           model: User,
@@ -179,7 +205,40 @@ exports.getUserComments = async (req, res, next) => {
       order: [['createdAt', 'DESC']],
     });
 
-    res.status(200).json(comments);
+    // 2) Transform each comment
+    const data = comments.map((comment) => {
+      return {
+        id: comment.id,
+        text: comment.commentText,
+        createdAt: comment.createdAt,
+        poll: comment.poll
+          ? {
+              id: comment.poll.id,
+              question: comment.poll.question,
+              createdAt: comment.poll.createdAt,
+              user: comment.poll.user
+                ? {
+                    id: comment.poll.user.id,
+                    username: comment.poll.user.username,
+                    profilePicture: comment.poll.user.profilePicture,
+                  }
+                : null,
+            }
+          : null,
+        user: comment.user
+          ? {
+              id: comment.user.id,
+              username: comment.user.username,
+              profilePicture: comment.user.profilePicture,
+            }
+          : null,
+      };
+    });
+
+    return res.status(200).json({
+      totalCount,
+      comments: data,
+    });
   } catch (error) {
     next(error);
   }
@@ -190,31 +249,43 @@ exports.getUserVotes = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
 
-    const votes = await Vote.findAll({
+    // 1) Parse pagination params
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // 2) Find & count all votes by this user
+    const { rows: votes, count: totalCount } = await Vote.findAndCountAll({
       where: { userId },
+      limit,
+      offset,
       order: [['createdAt', 'DESC']],
       include: [
         {
+          // Must match Vote.belongsTo(PollOption, { as: 'pollOption' })
           model: PollOption,
           as: 'pollOption',
           attributes: ['id', 'optionText', 'votes', 'pollId', 'sortOrder'],
           include: [
             {
+              // Must match PollOption.belongsTo(Poll, { as: 'poll' })
               model: Poll,
               as: 'poll',
-              attributes: ['id', 'question', 'createdAt', 'allowComments'],
+              attributes: ['id', 'question', 'createdAt', 'allowComments', 'isPrivate'],
               include: [
                 {
+                  // Must match Poll.belongsTo(User, { as: 'user' })
                   model: User,
                   as: 'user',
                   attributes: ['id', 'username', 'profilePicture'],
                 },
                 {
+                  // Must match Poll.hasMany(PollOption, { as: 'options' })
                   model: PollOption,
                   as: 'options',
                   attributes: ['id', 'optionText', 'votes', 'sortOrder'],
                 },
                 {
+                  // Must match Poll.hasMany(Comment, { as: 'comments' })
                   model: Comment,
                   as: 'comments',
                   attributes: ['id', 'commentText', 'createdAt'],
@@ -231,6 +302,7 @@ exports.getUserVotes = async (req, res, next) => {
           ],
         },
         {
+          // Must match Vote.belongsTo(User, { as: 'user' })
           model: User,
           as: 'user',
           attributes: ['id', 'username', 'profilePicture'],
@@ -238,7 +310,7 @@ exports.getUserVotes = async (req, res, next) => {
       ],
     });
 
-    // Transform each vote => poll object
+    // 3) Transform each vote => poll object
     const results = votes.map((vote) => {
       const pollOpt = vote.pollOption;
       if (!pollOpt) return null;
@@ -255,6 +327,7 @@ exports.getUserVotes = async (req, res, next) => {
         question: poll.question,
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
+        isPrivate: poll.isPrivate,
         commentCount: (poll.comments || []).length,
         userVote,
         user: poll.user
@@ -287,7 +360,11 @@ exports.getUserVotes = async (req, res, next) => {
       return pollData;
     }).filter(Boolean);
 
-    return res.status(200).json(results);
+    // 4) Return pagination metadata + data
+    return res.status(200).json({
+      totalCount,
+      votes: results,
+    });
   } catch (error) {
     next(error);
   }

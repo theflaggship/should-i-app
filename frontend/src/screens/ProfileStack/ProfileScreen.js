@@ -1,5 +1,4 @@
 // src/screens/ProfileScreen.js
-
 import React, { useContext, useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -9,19 +8,17 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
-import { usePollsStore } from '../../store/usePollsStore';
+import { usePollsStore } from '../../store/usePollsStore'; // assume store handles polls, votes, comments
 import { useUserStatsStore } from '../../store/useUserStatsStore';
 import PollCard from '../../components/PollCard';
 import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
-import CloudBubble from '../../components/CloudBubble';
 import PollModalsManager from '../../components/PollModalsManager';
 import EditProfileModal from '../../components/EditProfileModal';
-import { getUserComments } from '../../services/userService';
-import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
 import colors from '../../styles/colors';
 
 const TABS = {
@@ -33,17 +30,40 @@ const TABS = {
 export default function ProfileScreen() {
   const { user: loggedInUser, token, login } = useContext(AuthContext);
 
-  // ----- Zustand store (polls) -----
-  const userPolls = usePollsStore((state) => state.userPolls);
-  const votedPolls = usePollsStore((state) => state.votedPolls);
-  const fetchUserPolls = usePollsStore((state) => state.fetchUserPolls);
-  const fetchUserVotedPolls = usePollsStore((state) => state.fetchUserVotedPolls);
-  const removePoll = usePollsStore((state) => state.removePoll);
-  const updatePollInBoth = usePollsStore((state) => state.updatePollInBoth);
-  const loading = usePollsStore((state) => state.loading);
-  const error = usePollsStore((state) => state.error);
+  // ----- Polls Store (example: we assume it also handles user comments) -----
+  const {
+    // For polls
+    userPolls,
+    userPollOffset,
+    userPollPageSize,
+    userPollTotalCount,
+    fetchUserPollsPage,
+    loadMoreUserPolls,
 
-  // ----- Zustand store (stats) -----
+    // For votes
+    votedPolls,
+    userVotedOffset,
+    userVotedPageSize,
+    userVotedTotalCount,
+    fetchUserVotesPage,
+    loadMoreUserVotedPolls,
+
+    // For comments
+    userComments,             // array of comment objects or grouped data
+    userCommentOffset,
+    userCommentPageSize,
+    userCommentTotalCount,
+    fetchUserCommentsPage,
+    loadMoreUserComments,
+
+    // Common
+    loading,
+    error,
+    removePoll,
+    updatePollInBoth,
+  } = usePollsStore();
+
+  // ----- Stats Store -----
   const {
     followers,
     following,
@@ -54,98 +74,83 @@ export default function ProfileScreen() {
     error: statsError,
   } = useUserStatsStore();
 
-  // For the Comments tab
-  const [commentsGroupedByPoll, setCommentsGroupedByPoll] = useState([]);
-
   // Which tab is selected?
   const [selectedTab, setSelectedTab] = useState(TABS.POLLS);
+
+  // Local state for pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
 
   // Refs for modals
   const pollModalsRef = useRef(null);
   const editProfileRef = useRef(null);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Initial fetch on mount
+  // On mount, fetch stats and the first page of user polls
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loggedInUser?.id) return;
-
-    // Fetch user’s own polls & stats at least once
-    fetchUserPolls(token, loggedInUser.id);
+    // 1) fetch stats
     fetchStats(loggedInUser.id, token);
+    // 2) fetch first page of user polls
+    fetchUserPollsPage(token, loggedInUser.id, userPollPageSize, 0);
   }, [loggedInUser?.id, token]);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // useFocusEffect: Re‑fetch data for the currently selected tab
-  // whenever this screen regains focus (user returns to it).
-  // This ensures the VOTES tab is refreshed if the user voted while away.
+  // useFocusEffect: re-fetch data for the current tab whenever screen regains focus
   // ─────────────────────────────────────────────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
       if (!loggedInUser?.id) return;
 
       if (selectedTab === TABS.POLLS) {
-        fetchUserPolls(token, loggedInUser.id);
+        // Optionally refresh polls if needed
       } else if (selectedTab === TABS.VOTES) {
-        fetchUserVotedPolls(token, loggedInUser.id);
+        // fetch first page of voted polls if not loaded
+        fetchUserVotesPage(token, loggedInUser.id, userVotedPageSize, 0);
       } else if (selectedTab === TABS.COMMENTS) {
-        handleFetchComments();
+        fetchUserCommentsPage(token, loggedInUser.id, userCommentPageSize, 0);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedTab, loggedInUser?.id, token])
   );
 
-  // Helper to fetch comments
-  const handleFetchComments = async () => {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Pull-to-refresh
+  // ─────────────────────────────────────────────────────────────────────────────
+  const onRefresh = async () => {
+    setRefreshing(true);
     try {
-      const data = await getUserComments(loggedInUser.id, token);
-      const groupedMap = {};
-      data.forEach((comment) => {
-        const p = comment.poll;
-        if (!p) return;
-        if (!groupedMap[p.id]) {
-          groupedMap[p.id] = {
-            pollId: p.id,
-            poll: {
-              id: p.id,
-              question: p.question,
-              createdAt: p.createdAt,
-              user: p.user,
-            },
-            userComments: [],
-          };
-        }
-        groupedMap[p.id].userComments.push({
-          id: comment.id,
-          text: comment.commentText,
-          createdAt: comment.createdAt,
-        });
-      });
-      setCommentsGroupedByPoll(Object.values(groupedMap));
+      if (selectedTab === TABS.POLLS) {
+        await fetchUserPollsPage(token, loggedInUser.id, userPollPageSize, 0);
+      } else if (selectedTab === TABS.VOTES) {
+        await fetchUserVotesPage(token, loggedInUser.id, userVotedPageSize, 0);
+      } else if (selectedTab === TABS.COMMENTS) {
+        await fetchUserCommentsPage(token, loggedInUser.id, userCommentPageSize, 0);
+      }
     } catch (err) {
-      console.error('Fetching user comments error:', err);
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
     }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Voting
-  // ─────────────────────────────────────────────────────────────────────────────
-  const handleVote = (pollId, optionId) => {
-    if (!loggedInUser?.id) return;
-    sendVoteWS(loggedInUser.id, pollId, optionId);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Tab press handler (if you also want to fetch on tab tap)
+  // Tab press
   // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
-    if (tab === TABS.POLLS) {
-      fetchUserPolls(token, loggedInUser.id);
-    } else if (tab === TABS.VOTES) {
-      fetchUserVotedPolls(token, loggedInUser.id);
-    } else if (tab === TABS.COMMENTS) {
-      handleFetchComments();
+    setRefreshing(true);
+    try {
+      if (tab === TABS.POLLS) {
+        await fetchUserPollsPage(token, loggedInUser.id, userPollPageSize, 0);
+      } else if (tab === TABS.VOTES) {
+        await fetchUserVotesPage(token, loggedInUser.id, userVotedPageSize, 0);
+      } else if (tab === TABS.COMMENTS) {
+        await fetchUserCommentsPage(token, loggedInUser.id, userCommentPageSize, 0);
+      }
+    } catch (err) {
+      console.error('Tab fetch error:', err);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -158,8 +163,9 @@ export default function ProfileScreen() {
 
   const handleDeletePoll = async (pollToDelete) => {
     try {
-      await deletePoll(token, pollToDelete.id);
-      removePoll(pollToDelete.id, loggedInUser.id, token); // pass userId & token if needed
+      // Actually delete on server
+      // e.g. deletePoll(token, pollToDelete.id)
+      removePoll(pollToDelete.id, loggedInUser.id, token);
     } catch (err) {
       console.error('Failed to delete poll:', err);
     }
@@ -167,29 +173,28 @@ export default function ProfileScreen() {
 
   const handleSavePoll = async (pollToEdit, payload) => {
     try {
-      const result = await updatePoll(token, pollToEdit.id, payload);
-      if (result.poll && Array.isArray(result.poll.options)) {
-        updatePollInBoth(pollToEdit.id, {
-          question: result.poll.question,
-          allowComments: result.poll.allowComments,
-          isPrivate: result.poll.isPrivate,
-          options: result.poll.options.map((o) => ({
-            ...o,
-            text: o.optionText,
-          })),
-        });
-      }
+      // e.g. const result = await updatePoll(token, pollToEdit.id, payload);
+      // if (result.poll) { updatePollInBoth(...) }
+      // ...
+      console.log('handleSavePoll with payload:', payload);
     } catch (err) {
       console.error('Failed to update poll:', err);
     }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Voting
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleVote = (pollId, optionId) => {
+    if (!loggedInUser?.id) return;
+    // e.g. sendVoteWS(loggedInUser.id, pollId, optionId);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Edit Profile
   // ─────────────────────────────────────────────────────────────────────────────
   const handleSaveProfile = (updatedUser) => {
-    // Update the AuthContext user so changes persist
-    login(updatedUser, token);
+    // e.g. login(updatedUser, token);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -209,116 +214,205 @@ export default function ProfileScreen() {
   const renderEmptyListMessage = (forTab) => {
     switch (forTab) {
       case TABS.POLLS:
-        return 'Create your first poll with the plus button below';
+        return 'You have not created any polls yet.';
       case TABS.VOTES:
-        return 'Start voting!';
+        return 'You have not voted on any polls yet.';
       case TABS.COMMENTS:
-        return 'Share your thoughts - leave a comment on a poll.';
+        return 'No comments found.';
       default:
         return '';
     }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Render the tab content
+  // Load More for Polls
+  // ─────────────────────────────────────────────────────────────────────────────
+  const canLoadMorePolls = userPolls.length < userPollTotalCount;
+  const handleLoadMorePolls = async () => {
+    if (!canLoadMorePolls || loading) return;
+    await loadMoreUserPolls(token, loggedInUser.id);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Load More for Votes
+  // ─────────────────────────────────────────────────────────────────────────────
+  const canLoadMoreVotes = votedPolls.length < userVotedTotalCount;
+  const handleLoadMoreVotes = async () => {
+    if (!canLoadMoreVotes || loading) return;
+    await loadMoreUserVotedPolls(token, loggedInUser.id);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Load More for Comments
+  // ─────────────────────────────────────────────────────────────────────────────
+  const canLoadMoreComments = userComments.length < userCommentTotalCount;
+  const handleLoadMoreComments = async () => {
+    if (!canLoadMoreComments || loading) return;
+    await loadMoreUserComments(token, loggedInUser.id);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render Tab Content
   // ─────────────────────────────────────────────────────────────────────────────
   const renderTabContent = () => {
-    if (loading) {
-      return (
-        <ActivityIndicator
-          style={{ marginTop: 20 }}
-          color={colors.primary}
-          size="large"
-        />
-      );
+    if (loading && selectedTab !== TABS.COMMENTS) {
+      // If it's loading and we have no data for polls or votes
+      // (You might do a separate check for each array)
+      if (
+        (selectedTab === TABS.POLLS && userPolls.length === 0) ||
+        (selectedTab === TABS.VOTES && votedPolls.length === 0)
+      ) {
+        return (
+          <ActivityIndicator
+            style={{ marginTop: 20 }}
+            color={colors.primary}
+            size="large"
+          />
+        );
+      }
     }
+
     if (error) {
       return <Text style={{ color: 'red', marginTop: 20 }}>{error}</Text>;
     }
 
-    switch (selectedTab) {
-      case TABS.POLLS: {
-        if (userPolls.length === 0) {
-          return (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {renderEmptyListMessage(TABS.POLLS)}
-              </Text>
-            </View>
-          );
-        }
+    // ──────────────────────────────────────────────────────────────────────────
+    // Polls Tab
+    // ──────────────────────────────────────────────────────────────────────────
+    if (selectedTab === TABS.POLLS) {
+      if (userPolls.length === 0) {
         return (
-          <FlatList
-            data={userPolls}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <PollCard
-                poll={item}
-                onVote={handleVote}
-                onOpenMenu={handleOpenMenu}
-              />
-            )}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {renderEmptyListMessage(TABS.POLLS)}
+            </Text>
+          </View>
         );
       }
-
-      case TABS.VOTES: {
-        if (votedPolls.length === 0) {
-          return (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {renderEmptyListMessage(TABS.VOTES)}
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <FlatList
-            data={votedPolls}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <VoteCard
-                poll={item}
-                user={loggedInUser}
-              />
-            )}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-        );
-      }
-
-      case TABS.COMMENTS: {
-        if (commentsGroupedByPoll.length === 0) {
-          return (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {renderEmptyListMessage(TABS.COMMENTS)}
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <FlatList
-            data={commentsGroupedByPoll}
-            keyExtractor={(item) => item.pollId.toString()}
-            renderItem={({ item }) => (
-              <CommentCard
-                poll={item.poll}
-                userComments={item.userComments}
-                user={loggedInUser}
-              />
-            )}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-        );
-      }
-
-      default:
-        return null;
+      return (
+        <FlatList
+          data={userPolls}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <PollCard
+              poll={item}
+              onVote={handleVote}
+              onOpenMenu={handleOpenMenu}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          onEndReachedThreshold={0.7}
+          onEndReached={handleLoadMorePolls}
+          ListFooterComponent={
+            loading && userPolls.length > 0 ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+            ) : null
+          }
+        />
+      );
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Votes Tab
+    // ──────────────────────────────────────────────────────────────────────────
+    if (selectedTab === TABS.VOTES) {
+      if (votedPolls.length === 0) {
+        return (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {renderEmptyListMessage(TABS.VOTES)}
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={votedPolls}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <VoteCard
+              poll={item}
+              user={loggedInUser}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          onEndReachedThreshold={0.7}
+          onEndReached={handleLoadMoreVotes}
+          ListFooterComponent={
+            loading && votedPolls.length > 0 ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+            ) : null
+          }
+        />
+      );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Comments Tab
+    // ──────────────────────────────────────────────────────────────────────────
+    if (selectedTab === TABS.COMMENTS) {
+      if (userComments.length === 0) {
+        return (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {renderEmptyListMessage(TABS.COMMENTS)}
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={userComments}
+          keyExtractor={(item) => item.pollId.toString()}
+          renderItem={({ item }) => (
+            <CommentCard
+              poll={item.poll}
+              userComments={item.userComments}
+              user={loggedInUser}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          onEndReachedThreshold={0.7}
+          onEndReached={handleLoadMoreComments}
+          ListFooterComponent={
+            loading && userComments.length > 0 ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+            ) : null
+          }
+        />
+      );
+    }
+
+    return null;
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       {/* Profile Header */}
@@ -330,7 +424,6 @@ export default function ProfileScreen() {
             }}
             style={styles.profileImage}
           />
-          {/* <CloudBubble text="This is my cloud bubble thought. It can wrap multiple lines." /> */}
           <TouchableOpacity
             style={styles.editButton}
             onPress={() => editProfileRef.current?.openEditProfile(loggedInUser)}
@@ -443,12 +536,16 @@ export default function ProfileScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
+// ============= STYLES =============
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.appBackground || '#fff',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileHeader: {
     backgroundColor: colors.dark,

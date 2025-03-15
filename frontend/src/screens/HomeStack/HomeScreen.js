@@ -4,6 +4,7 @@ import React, { useRef, useContext, useState, useEffect } from 'react';
 import {
   View,
   Text,
+  Image,
   FlatList,
   ActivityIndicator,
   StyleSheet,
@@ -23,32 +24,50 @@ import { deletePoll, updatePoll } from '../../services/pollService';
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const { height } = Dimensions.get('window');
 
+// Two main tabs: DISCOVER, FOLLOWING
 const TABS = {
   DISCOVER: 'DISCOVER',
   FOLLOWING: 'FOLLOWING',
 };
 
 const HomeScreen = () => {
-  const { user, token } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
 
-  // ----- Zustand store stuff -----
-  const polls = usePollsStore((state) => state.polls);                 // For "DISCOVER"
-  const followingPolls = usePollsStore((state) => state.followingPolls); // For "FOLLOWING"
+  // Extract the relevant data & actions from your Zustand store
+  const {
+    // Arrays
+    polls,             // For "Discover"
+    followingPolls,    // For "Following"
 
-  const fetchAllPolls = usePollsStore((state) => state.fetchAllPolls);
-  const fetchFollowingPolls = usePollsStore((state) => state.fetchFollowingPolls);
+    // Loading/error states
+    loading,
+    error,
 
-  const removePoll = usePollsStore((state) => state.removePoll);
-  const loading = usePollsStore((state) => state.loading);
-  const error = usePollsStore((state) => state.error);
+    // "Discover" pagination
+    discoverOffset,
+    discoverPageSize,
+    discoverTotalCount,
+    fetchAllPollsPage,
+    loadMorePollsPage,
 
-  // Which tab is selected?
+    // "Following" pagination
+    followingOffset,
+    followingPageSize,
+    followingTotalCount,
+    fetchFollowingPollsPage,
+    loadMoreFollowingPolls,
+
+    // Remove poll from store
+    removePoll,
+  } = usePollsStore();
+
+  // Keep track of which tab is selected
   const [selectedTab, setSelectedTab] = useState(TABS.DISCOVER);
 
-  // For pulling down to refresh
+  // For pull-to-refresh spinner
   const [refreshing, setRefreshing] = useState(false);
 
-  // For the “floating” navbar animation
+  // Optional: for an animated top bar
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const navbarTranslate = scrollY.interpolate({
@@ -57,29 +76,34 @@ const HomeScreen = () => {
     extrapolate: 'clamp',
   });
 
-  // Reference to our PollModalsManager
+  // Reference to PollModalsManager (for delete/edit actions)
   const pollModalsRef = useRef(null);
 
-  // On mount, fetch the initial tab data
+  // ─────────────────────────────────────────────────────────────────────────────
+  // On mount: load the first page for "Discover"
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (token) {
-      // Only fetch if token is defined
-      fetchAllPolls(token).catch((err) => {
-        console.error('Initial fetch error:', err);
+      fetchAllPollsPage(token, discoverPageSize, 0).catch((err) => {
+        console.error('Initial discover fetch error:', err);
       });
     }
-  }, [token, fetchAllPolls]);
+  }, [token, discoverPageSize, fetchAllPollsPage]);
 
-  // Handler for switching tabs
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Switch tabs
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
     setRefreshing(true);
+
     try {
       if (tab === TABS.DISCOVER) {
-        await fetchAllPolls(token);
+        // Reload from offset=0
+        await fetchAllPollsPage(token, discoverPageSize, 0);
       } else {
-        // tab === TABS.FOLLOWING
-        await fetchFollowingPolls(token);
+        // TABS.FOLLOWING
+        await fetchFollowingPollsPage(token, followingPageSize, 0);
       }
     } catch (err) {
       console.error('Tab fetch error:', err);
@@ -88,14 +112,16 @@ const HomeScreen = () => {
     }
   };
 
-  // Pull-to-refresh handler
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Pull-to-refresh
+  // ─────────────────────────────────────────────────────────────────────────────
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       if (selectedTab === TABS.DISCOVER) {
-        await fetchAllPolls(token);
+        await fetchAllPollsPage(token, discoverPageSize, 0);
       } else {
-        await fetchFollowingPolls(token);
+        await fetchFollowingPollsPage(token, followingPageSize, 0);
       }
     } catch (err) {
       console.error('Refresh error:', err);
@@ -104,12 +130,38 @@ const HomeScreen = () => {
     }
   };
 
-  // Called by PollCard’s onOpenMenu
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Decide which data array & pagination to use
+  // ─────────────────────────────────────────────────────────────────────────────
+  const dataToRender = selectedTab === TABS.DISCOVER ? polls : followingPolls;
+  const totalCount =
+    selectedTab === TABS.DISCOVER ? discoverTotalCount : followingTotalCount;
+  const currentOffset =
+    selectedTab === TABS.DISCOVER ? discoverOffset : followingOffset;
+  const canLoadMore = dataToRender.length < totalCount;
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Infinite scroll
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleEndReached = async () => {
+    if (loading) return; // avoid spamming if store is already loading
+    if (!canLoadMore) return; // no more data
+
+    // Load more
+    if (selectedTab === TABS.DISCOVER) {
+      await loadMorePollsPage(token);
+    } else {
+      await loadMoreFollowingPolls(token);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PollModalsManager callbacks
+  // ─────────────────────────────────────────────────────────────────────────────
   const handleOpenMenu = (poll) => {
     pollModalsRef.current?.openMenu(poll);
   };
 
-  // Called by the manager to delete a poll
   const handleDeletePoll = async (poll) => {
     try {
       await deletePoll(token, poll.id);
@@ -119,7 +171,6 @@ const HomeScreen = () => {
     }
   };
 
-  // Called by the manager to save poll edits
   const handleSavePoll = async (poll, payload) => {
     try {
       const result = await updatePoll(token, poll.id, payload);
@@ -139,6 +190,9 @@ const HomeScreen = () => {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────────
   // If there's a global error from the store
   if (error) {
     return (
@@ -148,21 +202,27 @@ const HomeScreen = () => {
     );
   }
 
-  // Decide which array to render
-  const dataToRender = selectedTab === TABS.DISCOVER ? polls : followingPolls;
+  // If loading initially and no data yet
+  if (loading && dataToRender.length === 0) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* <Animated.View
-        style={[{ transform: [{ translateY: navbarTranslate }] }]}
-      >
-        </Animated.View> */}
+      {/* If you want an animated top bar, wrap in an Animated.View
+      <Animated.View style={{ transform: [{ translateY: navbarTranslate }] }}>
+        ...
+      </Animated.View>
+      */}
       <View style={styles.navbar}>
-        <Text style={styles.navTitle}>Whicha</Text>
+        <Image style={styles.logo} source={require('../../../graphics/whicha_logo.png')} />
       </View>
-      {/* Animated Navbar */}
 
-      {/* Top row for the two tabs */}
+      {/* Tabs row */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
           style={[
@@ -199,14 +259,6 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Show spinner if loading and no polls yet */}
-      {loading && dataToRender.length === 0 && (
-        <ActivityIndicator
-          style={{ marginVertical: 20 }}
-          color={colors.primary}
-        />
-      )}
-
       <AnimatedFlatList
         data={dataToRender}
         keyExtractor={(item) => item.id.toString()}
@@ -222,6 +274,7 @@ const HomeScreen = () => {
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 16 }}
+        // Pull-to-refresh
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -231,13 +284,23 @@ const HomeScreen = () => {
             progressViewOffset={110}
           />
         }
+        // Animate the scroll for a floating navbar
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
         )}
+        // Infinite scroll
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.7}
+        // Footer spinner if loading more
+        ListFooterComponent={
+          loading && dataToRender.length > 0 ? (
+            <ActivityIndicator color={colors.primary} style={{ margin: 12 }} />
+          ) : null
+        }
       />
 
-      {/* Reusable PollModalsManager handles all bottom sheets */}
+      {/* Poll Modals Manager */}
       <PollModalsManager
         ref={pollModalsRef}
         onDeletePoll={handleDeletePoll}
@@ -268,10 +331,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
   },
-  navTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.light,
+  logo: {
+    width: 150,
+    height: 55,
+    resizeMode: 'contain',
     marginTop: 30,
   },
   tabsRow: {
@@ -302,7 +365,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   firstPollCardContainer: {
-    // Because we have 2 bars now, we add extra margin
     marginTop: 16,
     marginHorizontal: 16,
     marginBottom: 16,

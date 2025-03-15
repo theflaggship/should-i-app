@@ -1,6 +1,11 @@
+// userService.js
 import api from './api';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NON-PAGINATED METHODS
+// ─────────────────────────────────────────────────────────────────────────────
 export const getUserPolls = async (userId, token) => {
+  // Returns an array or some structure (non-paginated)
   const response = await api.get(`/users/${userId}/polls`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -8,10 +13,10 @@ export const getUserPolls = async (userId, token) => {
 };
 
 export const getUserComments = async (userId, token) => {
-    const response = await api.get(`/users/${userId}/comments`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.data;
+  const response = await api.get(`/users/${userId}/comments`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
 };
 
 export const getUserVotes = async (userId, token) => {
@@ -21,23 +26,58 @@ export const getUserVotes = async (userId, token) => {
   return response.data;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGINATED METHODS
+// ─────────────────────────────────────────────────────────────────────────────
+export const getUserPollsPaginated = async (userId, token, limit = 10, offset = 0) => {
+  const response = await api.get(`/users/${userId}/polls`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { limit, offset },  // pass pagination as query params
+  });
+  // The server should return something like:
+  // { totalCount: number, polls: [...pollObjects...] }
+  return response.data;
+};
+
+export const getUserCommentsPaginated = async (userId, token, limit = 10, offset = 0) => {
+  const response = await api.get(`/users/${userId}/comments`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { limit, offset },
+  });
+  // The server should return something like:
+  // { totalCount: number, comments: [...commentObjects...] }
+  return response.data;
+};
+
+export const getUserVotesPaginated = async (userId, token, limit = 10, offset = 0) => {
+  const response = await api.get(`/users/${userId}/votes`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { limit, offset },
+  });
+  // The server should return something like:
+  // { totalCount: number, polls: [...], or some structure of voted items }
+  return response.data;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER STATS, PROFILE, ETC.
+// ─────────────────────────────────────────────────────────────────────────────
 export const getUserStats = async (userId, token) => {
   const response = await api.get(`/users/${userId}/stats`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  return response.data; // { followers, following, totalPolls, totalVotes }
+  return response.data; // e.g. { followers, following, totalPolls, totalVotes }
 };
 
 export const getUserById = async (userId, token) => {
   const response = await api.get(`/users/${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  return response.data; // This should be the user object
+  return response.data; // user object
 };
 
 export const updateUserProfile = async (userId, token, payload) => {
-  // payload example:
-  // { displayName, status, personalSummary, profilePicture }
+  // e.g. { displayName, status, personalSummary, profilePicture }
   const response = await api.put(`/users/${userId}`, payload, {
     headers: { Authorization: `Bearer ${token}` },
   });

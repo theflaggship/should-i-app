@@ -19,11 +19,37 @@ export const getPolls = async (token) => {
   }
 };
 
+export const getPollsPaginated = async (token, limit, offset) => {
+  try {
+    const response = await api.get('/polls', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { limit, offset }, // <--- pass them as query params
+    });
+    // The server returns: { totalCount, polls: [...] }
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getFollowingPolls = async (token) => {
   try {
     const response = await api.get('/polls/following', {
       headers: { Authorization: `Bearer ${token}` },
     });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getFollowingPollsPaginated = async (token, limit, offset) => {
+  try {
+    const response = await api.get('/polls/following', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { limit, offset }, // <--- pass them as query params
+    });
+    // The server returns: { totalCount, polls: [...] }
     return response.data;
   } catch (error) {
     throw error;

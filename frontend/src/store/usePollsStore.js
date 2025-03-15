@@ -1,61 +1,194 @@
-// usePollsStore.js
+// src/store/usePollsStore.js
 
 import { create } from 'zustand';
 import {
+  // Non-paginated discover/following
   getPolls,
-  getFollowingPolls,   // <-- import the new function if you have it in pollService
+  getFollowingPolls,
+  // Paginated discover/following
+  getPollsPaginated,
+  getFollowingPollsPaginated,
+  // Websockets
   connectVoteSocket,
   connectCommentSocket,
 } from '../services/pollService';
 
 import {
+  // Non-paginated user endpoints
   getUserPolls,
   getUserVotes,
+  getUserComments,
+  // Paginated user endpoints (implement these in userService)
+  getUserPollsPaginated,
+  getUserVotesPaginated,
+  getUserCommentsPaginated,
 } from '../services/userService';
 
 import { useUserStatsStore } from './useUserStatsStore';
 
-export const usePollsStore = create((set, get) => ({
-  // State
-  polls: [],
-  userPolls: [],
-  votedPolls: [],
-  followingPolls: [],
+/**
+ * Helper function: merges updated poll options from a new array
+ * into an old array of options, used by updatePollState.
+ */
+function mergeOptions(oldOptions, updatedOptions) {
+  return oldOptions.map((oldOpt) => {
+    const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
+    if (!newOpt) return oldOpt;
+    return {
+      ...oldOpt,
+      text: newOpt.text ?? oldOpt.text,
+      votes: newOpt.votes,
+    };
+  });
+}
 
-  loading: false,
+export const usePollsStore = create((set, get) => ({
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Main state
+  // ─────────────────────────────────────────────────────────────────────────────
+  polls: [],           // "Discover" feed
+  followingPolls: [],  // "Following" feed
+  userPolls: [],       // Logged-in user's own polls
+  votedPolls: [],      // Logged-in user's voted polls
+  userComments: [],    // If you want to store paginated user comments
+
+  // Loading & error states
+  loading: false,       // For initial fetch
+  isLoadingMore: false, // For infinite scroll "load more"
   error: null,
 
+  // Pagination for "Discover"
+  discoverTotalCount: 0,
+  discoverOffset: 0,
+  discoverPageSize: 10,
+
+  // Pagination for "Following"
+  followingTotalCount: 0,
+  followingOffset: 0,
+  followingPageSize: 10,
+
+  // Pagination for Profile → Polls
+  userPollsTotalCount: 0,
+  userPollsOffset: 0,
+  userPollsPageSize: 10,
+
+  // Pagination for Profile → Votes
+  userVotesTotalCount: 0,
+  userVotesOffset: 0,
+  userVotesPageSize: 10,
+
+  // Pagination for Profile → Comments
+  userCommentsTotalCount: 0,
+  userCommentsOffset: 0,
+  userCommentsPageSize: 10,
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // Fetch all polls (main feed) - "Discover" tab
+  // 1) NON-PAGINATED: Discover (kept for backward compatibility)
   // ─────────────────────────────────────────────────────────────────────────────
   fetchAllPolls: async (token) => {
     set({ loading: true, error: null });
     try {
-      const data = await getPolls(token);
-      const publicPolls = data.filter((poll) => !poll.isPrivate);
-      // Optional: sort comments in each poll by createdAt
+      // Suppose getPolls returns { polls, totalCount }
+      const { polls, totalCount } = await getPolls(token);
+
+      // Filter out private polls
+      const publicPolls = polls.filter((p) => !p.isPrivate);
+
+      // Sort comments in each poll if needed
       publicPolls.forEach((poll) => {
         if (Array.isArray(poll.comments)) {
           poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         }
       });
-      set({ polls: publicPolls });
+
+      set({
+        polls: publicPolls,
+        error: null,
+      });
     } catch (err) {
-      set({ error: err.message || 'Something went wrong fetching all polls.' });
+      set({ error: err.message || 'Error fetching all polls' });
     } finally {
       set({ loading: false });
     }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Fetch polls from users the current user is following - "Following" tab
+  // 2) PAGINATED: Discover
+  // ─────────────────────────────────────────────────────────────────────────────
+  fetchAllPollsPage: async (token, limit = 10, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const { totalCount, polls } = await getPollsPaginated(token, limit, offset);
+
+      // Filter out private
+      const publicPolls = polls.filter((p) => !p.isPrivate);
+      publicPolls.forEach((poll) => {
+        if (Array.isArray(poll.comments)) {
+          poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
+      });
+
+      set({
+        polls: publicPolls,
+        discoverTotalCount: totalCount,
+        discoverOffset: offset + publicPolls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching paginated discover polls' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  loadMorePollsPage: async (token) => {
+    const {
+      discoverOffset,
+      discoverPageSize,
+      discoverTotalCount,
+      polls,
+      isLoadingMore,
+    } = get();
+
+    if (isLoadingMore) return;
+    if (polls.length >= discoverTotalCount) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const { totalCount, polls: newPolls } = await getPollsPaginated(
+        token,
+        discoverPageSize,
+        discoverOffset
+      );
+
+      const publicPolls = newPolls.filter((p) => !p.isPrivate);
+      publicPolls.forEach((poll) => {
+        if (Array.isArray(poll.comments)) {
+          poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
+      });
+
+      set({
+        polls: [...polls, ...publicPolls],
+        discoverTotalCount: totalCount,
+        discoverOffset: discoverOffset + publicPolls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error loading more discover polls' });
+    } finally {
+      set({ isLoadingMore: false });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 3) NON-PAGINATED: Following
   // ─────────────────────────────────────────────────────────────────────────────
   fetchFollowingPolls: async (token) => {
     set({ loading: true, error: null });
     try {
-      // If you created an API endpoint for "following" polls, call it here
       const data = await getFollowingPolls(token);
-      // Sort if desired
+
       data.forEach((poll) => {
         if (Array.isArray(poll.comments)) {
           poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -64,16 +197,92 @@ export const usePollsStore = create((set, get) => ({
           poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         }
       });
-      set({ followingPolls: data });
+
+      set({
+        followingPolls: data,
+        error: null,
+      });
     } catch (err) {
-      set({ error: err.message || 'Something went wrong fetching following polls.' });
+      set({ error: err.message || 'Error fetching following polls' });
     } finally {
       set({ loading: false });
     }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Fetch the user’s own polls (Profile → Polls tab)
+  // 4) PAGINATED: Following
+  // ─────────────────────────────────────────────────────────────────────────────
+  fetchFollowingPollsPage: async (token, limit = 10, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const { totalCount, polls } = await getFollowingPollsPaginated(token, limit, offset);
+
+      polls.forEach((poll) => {
+        if (Array.isArray(poll.comments)) {
+          poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        followingPolls: polls,
+        followingTotalCount: totalCount,
+        followingOffset: offset + polls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching paginated following polls' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  loadMoreFollowingPolls: async (token) => {
+    const {
+      followingOffset,
+      followingPageSize,
+      followingTotalCount,
+      followingPolls,
+      isLoadingMore,
+    } = get();
+
+    if (isLoadingMore) return;
+    if (followingPolls.length >= followingTotalCount) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const { totalCount, polls: newPolls } = await getFollowingPollsPaginated(
+        token,
+        followingPageSize,
+        followingOffset
+      );
+
+      newPolls.forEach((poll) => {
+        if (Array.isArray(poll.comments)) {
+          poll.comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        followingPolls: [...followingPolls, ...newPolls],
+        followingTotalCount: totalCount,
+        followingOffset: followingOffset + newPolls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error loading more following polls' });
+    } finally {
+      set({ isLoadingMore: false });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 5) NON-PAGINATED: Profile (user polls, user votes, user comments)
   // ─────────────────────────────────────────────────────────────────────────────
   fetchUserPolls: async (token, userId) => {
     set({ loading: true, error: null });
@@ -86,15 +295,12 @@ export const usePollsStore = create((set, get) => ({
       });
       set({ userPolls: data });
     } catch (err) {
-      set({ error: err.message || 'Something went wrong fetching user polls.' });
+      set({ error: err.message || 'Error fetching user polls' });
     } finally {
       set({ loading: false });
     }
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Fetch the user’s voted polls (Profile → Votes tab)
-  // ─────────────────────────────────────────────────────────────────────────────
   fetchUserVotedPolls: async (token, userId) => {
     set({ loading: true, error: null });
     try {
@@ -106,18 +312,268 @@ export const usePollsStore = create((set, get) => ({
       });
       set({ votedPolls: data });
     } catch (err) {
-      set({ error: err.message || 'Something went wrong fetching voted polls.' });
+      set({ error: err.message || 'Error fetching voted polls' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchUserComments: async (token, userId) => {
+    set({ loading: true, error: null });
+    try {
+      // Suppose this returns an array of comments + poll data
+      const data = await getUserComments(userId, token);
+      // You can store them however you want; or parse them into userComments
+      // For now, let's just store them in userComments:
+      set({ userComments: data });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching user comments' });
     } finally {
       set({ loading: false });
     }
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // A helper if you want to update poll in both arrays at once
+  // 6) PAGINATED: Profile (user polls, user votes, user comments)
   // ─────────────────────────────────────────────────────────────────────────────
+  fetchUserPollsPage: async (token, userId, limit = 10, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const { totalCount, polls } = await getUserPollsPaginated(userId, token, limit, offset);
+
+      polls.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        userPolls: polls,
+        userPollsTotalCount: totalCount,
+        userPollsOffset: offset + polls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching paginated user polls' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  loadMoreUserPollsPage: async (token, userId) => {
+    const {
+      userPolls,
+      userPollsOffset,
+      userPollsPageSize,
+      userPollsTotalCount,
+      isLoadingMore,
+    } = get();
+
+    if (isLoadingMore) return;
+    if (userPolls.length >= userPollsTotalCount) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const { totalCount, polls: newPolls } = await getUserPollsPaginated(
+        userId,
+        token,
+        userPollsPageSize,
+        userPollsOffset
+      );
+
+      newPolls.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        userPolls: [...userPolls, ...newPolls],
+        userPollsTotalCount: totalCount,
+        userPollsOffset: userPollsOffset + newPolls.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error loading more user polls' });
+    } finally {
+      set({ isLoadingMore: false });
+    }
+  },
+
+  fetchUserVotesPage: async (token, userId, limit = 10, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const { totalCount, votes } = await getUserVotesPaginated(userId, token, limit, offset);
+
+      votes.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        votedPolls: votes,
+        userVotesTotalCount: totalCount,
+        userVotesOffset: offset + votes.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching paginated user votes' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  loadMoreUserVotesPage: async (token, userId) => {
+    const {
+      votedPolls,
+      userVotesOffset,
+      userVotesPageSize,
+      userVotesTotalCount,
+      isLoadingMore,
+    } = get();
+
+    if (isLoadingMore) return;
+    if (votedPolls.length >= userVotesTotalCount) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const { totalCount, polls: newVotes } = await getUserVotesPaginated(
+        userId,
+        token,
+        userVotesPageSize,
+        userVotesOffset
+      );
+
+      newVotes.forEach((poll) => {
+        if (Array.isArray(poll.options)) {
+          poll.options.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        }
+      });
+
+      set({
+        votedPolls: [...votedPolls, ...newVotes],
+        userVotesTotalCount: totalCount,
+        userVotesOffset: userVotesOffset + newVotes.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error loading more user votes' });
+    } finally {
+      set({ isLoadingMore: false });
+    }
+  },
+
+  fetchUserCommentsPage: async (token, userId, limit = 10, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      // The server should return something like: { totalCount, comments: [...] }
+      const { totalCount, comments } = await getUserCommentsPaginated(
+        userId,
+        token,
+        limit,
+        offset
+      );
+  
+      // 1) Group the raw comments by pollId
+      const groupedMap = {};
+      comments.forEach((comment) => {
+        const p = comment.poll;
+        if (!p) return; // skip if there's no poll on the comment
+        const pollId = p.id;
+  
+        // If we haven't seen this poll yet, create an entry
+        if (!groupedMap[pollId]) {
+          groupedMap[pollId] = {
+            pollId,
+            poll: {
+              // keep whatever poll fields you need
+              id: p.id,
+              question: p.question,
+              createdAt: p.createdAt,
+              allowComments: p.allowComments,
+              isPrivate: p.isPrivate,
+              user: p.user,
+            },
+            userComments: [],
+          };
+        }
+  
+        // Add this comment to that poll's userComments array
+        groupedMap[pollId].userComments.push({
+          id: comment.id,
+          text: comment.text,
+          createdAt: comment.createdAt,
+          user: comment.user,
+        });
+      });
+  
+      // 2) Convert the map to an array
+      const groupedArray = Object.values(groupedMap);
+  
+      // 3) (Optional) sort by poll creation date or some other criteria
+      // groupedArray.sort((a, b) => new Date(b.poll.createdAt) - new Date(a.poll.createdAt));
+  
+      // 4) Store them in userComments
+      set({
+        userComments: groupedArray,
+        userCommentsTotalCount: totalCount,
+        userCommentsOffset: offset + comments.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error fetching paginated user comments' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+  
+  
+
+  loadMoreUserCommentsPage: async (token, userId) => {
+    const {
+      userComments,
+      userCommentsOffset,
+      userCommentsPageSize,
+      userCommentsTotalCount,
+      isLoadingMore,
+    } = get();
+
+    if (isLoadingMore) return;
+    if (userComments.length >= userCommentsTotalCount) return;
+
+    set({ isLoadingMore: true, error: null });
+    try {
+      const { totalCount, polls: newComments } = await getUserCommentsPaginated(
+        userId,
+        token,
+        userCommentsPageSize,
+        userCommentsOffset
+      );
+
+      set({
+        userComments: [...userComments, ...newComments],
+        userCommentsTotalCount: totalCount,
+        userCommentsOffset: userCommentsOffset + newComments.length,
+        error: null,
+      });
+    } catch (err) {
+      set({ error: err.message || 'Error loading more user comments' });
+    } finally {
+      set({ isLoadingMore: false });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 7) UPDATE & REMOVE LOGIC (unchanged from your code)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Update a poll in both the main feed (`polls`) and the user's feed (`userPolls`)
+   */
   updatePollInBoth: (pollId, partialData) => {
     set((state) => {
-      // 1) Update the main feed array
+      // Update `polls`
       const updatedPolls = state.polls.map((p) => {
         if (p.id !== pollId) return p;
         return {
@@ -127,7 +583,7 @@ export const usePollsStore = create((set, get) => ({
         };
       });
 
-      // 2) Update the userPolls array
+      // Update `userPolls`
       const updatedUserPolls = state.userPolls.map((p) => {
         if (p.id !== pollId) return p;
         return {
@@ -144,10 +600,9 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // updatePollState: called by the Vote WebSocket or manually
-  //    This updates both `polls` and `userPolls` (and `votedPolls` if needed)
-  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * updatePollState: merges updated options after a vote, in all relevant arrays
+   */
   updatePollState: (pollId, userVote, updatedOptions, userId, token) => {
     set((state) => {
       if (!pollId || !updatedOptions) {
@@ -158,21 +613,21 @@ export const usePollsStore = create((set, get) => ({
         };
       }
 
-      // 1) Update the main feed
+      // 1) polls
       const newPolls = state.polls.map((p) => {
         if (p.id !== pollId) return p;
         const mergedOptions = mergeOptions(p.options, updatedOptions);
         return { ...p, options: mergedOptions, userVote: userVote ?? null };
       });
 
-      // 2) Update the userPolls
+      // 2) userPolls
       const newUserPolls = state.userPolls.map((p) => {
         if (p.id !== pollId) return p;
         const mergedOptions = mergeOptions(p.options, updatedOptions);
         return { ...p, options: mergedOptions, userVote: userVote ?? null };
       });
 
-      // 3) Update the votedPolls
+      // 3) votedPolls
       const newVotedPolls = state.votedPolls.map((p) => {
         if (p.id !== pollId) return p;
         const mergedOptions = mergeOptions(p.options, updatedOptions);
@@ -186,15 +641,15 @@ export const usePollsStore = create((set, get) => ({
       };
     });
 
-    // Optionally refresh user stats after a vote
+    // Optionally refresh stats
     if (userId && token) {
       useUserStatsStore.getState().fetchStats(userId, token);
     }
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // updateUserPollInStore: if you only want to update userPolls
-  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * updateUserPollInStore: only update userPolls array
+   */
   updateUserPollInStore: (pollId, partialData) => {
     set((state) => ({
       userPolls: state.userPolls.map((p) => {
@@ -208,9 +663,9 @@ export const usePollsStore = create((set, get) => ({
     }));
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Update comment state in main feed
-  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * updateCommentState: merges a new or updated comment into `polls`, `userPolls`, etc.
+   */
   updateCommentState: (pollId, newComment) => {
     set((state) => {
       if (!pollId || !newComment) {
@@ -227,7 +682,7 @@ export const usePollsStore = create((set, get) => ({
         const oldComments = Array.isArray(p.comments) ? p.comments : [];
         const updatedComments = [...oldComments];
 
-        // Attempt to replace a "temp" comment if it matches text & user
+        // Possibly replace a "temp" comment
         const newTextTrimmed = (newComment.text || '').trim();
         const existingIndex = updatedComments.findIndex((c) => {
           const cTextTrimmed = (c.text || '').trim();
@@ -243,14 +698,8 @@ export const usePollsStore = create((set, get) => ({
           updatedComments.push(newComment);
         }
 
-        // Sort them by createdAt
         updatedComments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-        return {
-          ...p,
-          comments: updatedComments,
-          commentCount: updatedComments.length,
-        };
+        return { ...p, comments: updatedComments, commentCount: updatedComments.length };
       });
 
       return {
@@ -261,50 +710,50 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Add a newly created poll to the main feed
-  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * addPollToStore: add a newly created poll to the main feed & user feed
+   */
   addPollToStore: (newPoll, userId, token) => {
     if (newPoll.User && !newPoll.user) {
       newPoll.user = newPoll.User;
       delete newPoll.User;
     }
     set((state) => {
-      // If it’s private, do NOT add it to `polls`:
+      // If private, do not add to `polls`
       const updatedPolls = newPoll.isPrivate
-        ? state.polls // unchanged
+        ? state.polls
         : [newPoll, ...state.polls];
-  
+
       return {
         polls: updatedPolls,
-        // We still might want to push it to userPolls unconditionally:
         userPolls: [newPoll, ...state.userPolls],
       };
     });
 
-    // Optionally refresh stats after creating a poll
     if (userId && token) {
       useUserStatsStore.getState().fetchStats(userId, token);
     }
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Remove poll from main feed
-  // ─────────────────────────────────────────────────────────────────────────────
+  /**
+   * removePoll: remove poll from all arrays
+   */
   removePoll: (pollId, userId, token) => {
     set((state) => ({
       polls: state.polls.filter((p) => p.id !== pollId),
       userPolls: state.userPolls.filter((p) => p.id !== pollId),
+      followingPolls: state.followingPolls.filter((p) => p.id !== pollId),
+      votedPolls: state.votedPolls.filter((p) => p.id !== pollId),
     }));
-    // optionally also remove from followingPolls or votedPolls if needed
-  
-    // Optionally refresh stats after deleting a poll
+
     if (userId && token) {
       useUserStatsStore.getState().fetchStats(userId, token);
     }
   },
 
-  // If you want a simpler update just for main feed
+  /**
+   * updatePollInStore: simpler update just for main feed
+   */
   updatePollInStore: (pollId, partialData) => {
     set((state) => ({
       polls: state.polls.map((p) => {
@@ -319,33 +768,18 @@ export const usePollsStore = create((set, get) => ({
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Initialize store with websockets
+  // initPolls: called once on app startup or screen mount
   // ─────────────────────────────────────────────────────────────────────────────
   initPolls: (token, userId) => {
-    // For example, fetch the "all polls" on init
+    // If you want to fetch the original non-paginated "all polls" on init:
     get().fetchAllPolls(token);
 
-    // Connect the Vote WebSocket
+    // Connect websockets
     connectVoteSocket((pollId, userVote, options) => {
       get().updatePollState(pollId, userVote, options, userId, token);
     });
-
-    // Connect the Comment WebSocket
     connectCommentSocket((pollId, comment) => {
       get().updateCommentState(pollId, comment);
     });
   },
 }));
-
-// Helper function to merge updated options
-function mergeOptions(oldOptions, updatedOptions) {
-  return oldOptions.map((oldOpt) => {
-    const newOpt = updatedOptions.find((o) => o.id === oldOpt.id);
-    if (!newOpt) return oldOpt;
-    return {
-      ...oldOpt,
-      text: newOpt.text ?? oldOpt.text,
-      votes: newOpt.votes,
-    };
-  });
-}

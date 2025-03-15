@@ -1,5 +1,6 @@
 // controllers/pollController.js
 const { Poll, User, PollOption, Comment, Vote, Follow } = require('../models');
+const { Op } = require('sequelize');
 
 // POST /api/polls
 exports.createPoll = async (req, res, next) => {
@@ -40,7 +41,18 @@ exports.getAllPolls = async (req, res, next) => {
   try {
     const userId = req.user?.id;
 
-    const polls = await Poll.findAll({
+    // 1) Parse pagination params
+    //    You can do "limit & offset" or "page & limit"
+    const limit = parseInt(req.query.limit, 10) || 10;   // default limit=10
+    const offset = parseInt(req.query.offset, 10) || 0;  // default offset=0
+
+    // 2) Find & count all polls that are NOT private
+    const { rows: polls, count: totalCount } = await Poll.findAndCountAll({
+      where: {
+        isPrivate: false,  // only public polls
+      },
+      limit,
+      offset,
       include: [
         {
           model: User,
@@ -70,7 +82,7 @@ exports.getAllPolls = async (req, res, next) => {
       order: [['createdAt', 'DESC']],
     });
 
-    // If user is logged in, find all votes for these poll IDs
+    // 3) If user is logged in, find all of their votes for these poll IDs
     let userVotesByPollId = {};
     if (userId) {
       const pollIds = polls.map((p) => p.id);
@@ -82,7 +94,7 @@ exports.getAllPolls = async (req, res, next) => {
       });
     }
 
-    // Transform
+    // 4) Transform each poll
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
       return {
@@ -90,8 +102,8 @@ exports.getAllPolls = async (req, res, next) => {
         question: poll.question,
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
+        isPrivate: poll.isPrivate, // should be false here
         commentCount: poll.comments?.length || 0,
-        isPrivate: poll.isPrivate,
         userVote,
         user: poll.user
           ? {
@@ -120,7 +132,11 @@ exports.getAllPolls = async (req, res, next) => {
       };
     });
 
-    res.status(200).json(data);
+    // 5) Return polls plus meta info
+    return res.status(200).json({
+      totalCount,  // how many total (non-private) polls exist
+      polls: data, // the current page/slice
+    });
   } catch (error) {
     next(error);
   }
@@ -131,12 +147,14 @@ exports.getFollowingPolls = async (req, res, next) => {
   try {
     const requestingUserId = req.user?.id;
     if (!requestingUserId) {
-      return res
-        .status(401)
-        .json({ error: 'You must be logged in to view following polls.' });
+      return res.status(401).json({ error: 'You must be logged in to view following polls.' });
     }
 
-    // 1) Find the user IDs that this user is following
+    // 1) Parse pagination params
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // 2) Find the user IDs that this user is following
     const follows = await Follow.findAll({
       where: { followerId: requestingUserId },
       attributes: ['followingId'],
@@ -145,12 +163,18 @@ exports.getFollowingPolls = async (req, res, next) => {
 
     if (!followingIds.length) {
       // If not following anyone, just return an empty array
-      return res.status(200).json([]);
+      return res.status(200).json({
+        totalCount: 0,
+        polls: [],
+      });
     }
 
-    // 2) Find polls created by these followed users
-    const polls = await Poll.findAll({
+    // 3) Find & count polls created by these followed users
+    //    (no isPrivate filter here, so we see *all* of their polls)
+    const { rows: polls, count: totalCount } = await Poll.findAndCountAll({
       where: { userId: followingIds },
+      limit,
+      offset,
       include: [
         {
           model: User,
@@ -180,7 +204,7 @@ exports.getFollowingPolls = async (req, res, next) => {
       order: [['createdAt', 'DESC']],
     });
 
-    // 3) If user is logged in, find all votes for these poll IDs
+    // 4) If user is logged in, find all votes for these poll IDs
     let userVotesByPollId = {};
     const pollIds = polls.map((p) => p.id);
     const userVotes = await Vote.findAll({
@@ -190,7 +214,7 @@ exports.getFollowingPolls = async (req, res, next) => {
       userVotesByPollId[vote.pollId] = vote.pollOptionId;
     });
 
-    // 4) Transform results
+    // 5) Transform results
     const data = polls.map((poll) => {
       const userVote = userVotesByPollId[poll.id] || null;
       return {
@@ -198,9 +222,9 @@ exports.getFollowingPolls = async (req, res, next) => {
         question: poll.question,
         createdAt: poll.createdAt,
         allowComments: poll.allowComments,
+        isPrivate: poll.isPrivate,
         commentCount: poll.comments?.length || 0,
         userVote,
-        isPrivate: poll.isPrivate, 
         user: poll.user
           ? {
               id: poll.user.id,
@@ -228,7 +252,10 @@ exports.getFollowingPolls = async (req, res, next) => {
       };
     });
 
-    res.status(200).json(data);
+    return res.status(200).json({
+      totalCount,
+      polls: data,
+    });
   } catch (error) {
     next(error);
   }

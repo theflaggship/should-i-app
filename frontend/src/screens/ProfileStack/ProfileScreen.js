@@ -20,6 +20,8 @@ import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
 import PollModalsManager from '../../components/PollModalsManager';
 import EditProfileModal from '../../components/EditProfileModal';
+import { getUserComments } from '../../services/userService';
+import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
 import colors from '../../styles/colors';
 
 const TABS = {
@@ -165,9 +167,18 @@ export default function ProfileScreen() {
 
   const handleSavePoll = async (pollToEdit, payload) => {
     try {
-      // e.g. const result = await updatePoll(token, pollToEdit.id, payload);
-      // if (result.poll) { updatePollInBoth(...) }
-      console.log('handleSavePoll with payload:', payload);
+      const result = await updatePoll(token, pollToEdit.id, payload);
+      if (result.poll && Array.isArray(result.poll.options)) {
+        updatePollInBoth(pollToEdit.id, {
+          question: result.poll.question,
+          allowComments: result.poll.allowComments,
+          isPrivate: result.poll.isPrivate,
+          options: result.poll.options.map((o) => ({
+            ...o,
+            text: o.optionText,
+          })),
+        });
+      }
     } catch (err) {
       console.error('Failed to update poll:', err);
     }
@@ -178,14 +189,15 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   const handleVote = (pollId, optionId) => {
     if (!loggedInUser?.id) return;
-    // e.g. sendVoteWS(loggedInUser.id, pollId, optionId);
+    sendVoteWS(loggedInUser.id, pollId, optionId);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Edit Profile
   // ─────────────────────────────────────────────────────────────────────────────
   const handleSaveProfile = (updatedUser) => {
-    // e.g. login(updatedUser, token);
+    login(updatedUser, token);
+    fetchStats(updatedUser.id, token);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -205,11 +217,11 @@ export default function ProfileScreen() {
   const renderEmptyListMessage = (forTab) => {
     switch (forTab) {
       case TABS.POLLS:
-        return 'You have not created any polls yet.';
+        return 'Create your first poll with the plus button below';
       case TABS.VOTES:
-        return 'You have not voted on any polls yet.';
+        return 'Start voting!';
       case TABS.COMMENTS:
-        return 'No comments found.';
+        return 'Share your thoughts - leave a comment on a poll.';
       default:
         return '';
     }

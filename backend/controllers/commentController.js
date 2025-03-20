@@ -51,7 +51,7 @@ exports.getCommentsByPoll = async (req, res, next) => {
           // must match Comment.belongsTo(User, { as: 'user' })
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
       ],
       order: [['createdAt', 'ASC']],

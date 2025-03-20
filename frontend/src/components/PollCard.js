@@ -137,29 +137,23 @@ const PollCard = ({
     fillAnims,
   ]);
 
+  // Option press => vote or unvote logic
   const handleOptionPress = (optionId) => {
     if (!user?.id) return;
-  
-    // If userVote is the same as optionId, they're removing the vote
+
     if (poll.userVote === optionId) {
-      // Decrement totalVotes locally if you want immediate UI feedback
+      // Removing the vote
       useUserStatsStore.getState().decrementTotalVotes();
-  
-      // Also call your WS or onVote logic to remove the vote on the backend
       if (onVote) {
-        onVote(poll.id, optionId); // This should handle removing the vote
+        onVote(poll.id, optionId);
       } else {
         sendVoteWS(user.id, poll.id, optionId);
       }
     } else {
-      // The user is adding or changing their vote
-      // If poll.userVote == null => they had no vote, so increment
+      // Adding or changing a vote
       if (poll.userVote == null) {
         useUserStatsStore.getState().incrementTotalVotes();
       }
-      // If poll.userVote != null => they’re switching from one option to another
-      // (some apps might not increment or decrement here; it depends on your logic)
-  
       if (onVote) {
         onVote(poll.id, optionId);
       } else {
@@ -168,6 +162,7 @@ const PollCard = ({
     }
   };
 
+  // Navigation
   const handleNavigateToDetails = () => {
     if (!disableMainPress && poll?.id) {
       navigation.navigate('PollDetails', { pollId: poll.id });
@@ -182,7 +177,7 @@ const PollCard = ({
     const currentUserId = route.params?.userId;
     const myUserId = user?.id;
 
-    // ... logic to skip if we’re on that same user’s profile ...
+    // skip if we’re on that same user’s profile ...
     if (currentRouteName === 'OtherUserProfile' && currentUserId === finalUserId) {
       return;
     }
@@ -190,7 +185,6 @@ const PollCard = ({
       return;
     }
 
-    // otherwise, navigate
     navigation.navigate('OtherUserProfile', { userId: finalUserId });
   };
 
@@ -213,9 +207,20 @@ const PollCard = ({
             source={{ uri: finalUser.profilePicture || DEFAULT_PROFILE_IMG }}
             style={styles.profileImage}
           />
-          <Text style={styles.username}>
-            {finalUser.username ?? 'Unknown'}
-          </Text>
+
+          {/* SHOW displayName if available, otherwise fallback to username */}
+          {finalUser.displayName ? (
+            <View>
+              <Text style={styles.displayName}>{finalUser.displayName}</Text>
+              <Text style={styles.usernameSubtitle}>
+                @{finalUser.username ?? 'Unknown'}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.username}>
+              {finalUser.username ?? 'Unknown'}
+            </Text>
+          )}
         </TouchableOpacity>
 
         {!showDetailedTimestamp && (
@@ -377,7 +382,6 @@ const PollCard = ({
 
 export default PollCard;
 
-// The rest of your styles remain the same
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.pollBackground || '#fff',
@@ -405,6 +409,21 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'gray',
   },
+
+  // ============= NEW STYLES FOR DISPLAY NAME & SUBTITLE =============
+  displayName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.dark,
+    lineHeight: 20,
+  },
+  usernameSubtitle: {
+    fontSize: 14,
+    color: 'gray',
+    lineHeight: 18,
+  },
+
+  // Fallback if no displayName
   username: {
     fontSize: 16,
     color: colors.dark,

@@ -22,7 +22,7 @@ exports.createPoll = async (req, res, next) => {
     const pollWithUserAndOptions = await Poll.findOne({
       where: { id: newPoll.id },
       include: [
-        { model: User, as: 'user', attributes: ['id', 'username'] },
+        { model: User, as: 'user', attributes: ['id', 'username', 'profilePicture', 'displayName'], },
         { model: PollOption, as: 'options' },
       ],
     });
@@ -57,7 +57,7 @@ exports.getAllPolls = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
         {
           model: PollOption,
@@ -74,7 +74,7 @@ exports.getAllPolls = async (req, res, next) => {
             {
               model: User,
               as: 'user',
-              attributes: ['id', 'username', 'profilePicture'],
+              attributes: ['id', 'username', 'profilePicture', 'displayName'],
             },
           ],
         },
@@ -110,6 +110,7 @@ exports.getAllPolls = async (req, res, next) => {
               id: poll.user.id,
               username: poll.user.username,
               profilePicture: poll.user.profilePicture,
+              displayName: poll.user.displayName,
             }
           : null,
         options: (poll.options || []).map((opt) => ({
@@ -179,7 +180,7 @@ exports.getFollowingPolls = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
         {
           model: PollOption,
@@ -196,7 +197,7 @@ exports.getFollowingPolls = async (req, res, next) => {
             {
               model: User,
               as: 'user',
-              attributes: ['id', 'username', 'profilePicture'],
+              attributes: ['id', 'username', 'profilePicture', 'displayName'],
             },
           ],
         },
@@ -230,6 +231,7 @@ exports.getFollowingPolls = async (req, res, next) => {
               id: poll.user.id,
               username: poll.user.username,
               profilePicture: poll.user.profilePicture,
+              displayName: poll.user.displayName,
             }
           : null,
         options: (poll.options || []).map((opt) => ({
@@ -272,7 +274,7 @@ exports.getPollById = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
         {
           model: PollOption,
@@ -289,7 +291,7 @@ exports.getPollById = async (req, res, next) => {
             {
               model: User,
               as: 'user',
-              attributes: ['id', 'username', 'profilePicture'],
+              attributes: ['id', 'username', 'profilePicture', 'displayName'],
             },
           ],
         },
@@ -321,6 +323,7 @@ exports.getPollById = async (req, res, next) => {
             id: poll.user.id,
             username: poll.user.username,
             profilePicture: poll.user.profilePicture,
+            displayName: poll.user.displayName,
           }
         : null,
       userVote,

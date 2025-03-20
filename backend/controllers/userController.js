@@ -84,7 +84,7 @@ exports.getUserPolls = async (req, res, next) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
         {
           model: PollOption,
@@ -101,7 +101,7 @@ exports.getUserPolls = async (req, res, next) => {
             {
               model: User,
               as: 'user',
-              attributes: ['id', 'username', 'profilePicture'],
+              attributes: ['id', 'username', 'profilePicture', 'displayName'],
             },
           ],
         },
@@ -139,6 +139,7 @@ exports.getUserPolls = async (req, res, next) => {
               id: poll.user.id,
               username: poll.user.username,
               profilePicture: poll.user.profilePicture,
+              displayName: poll.user.displayName,
             }
           : null,
         options: (poll.options || []).map((opt) => ({
@@ -192,14 +193,14 @@ exports.getUserComments = async (req, res, next) => {
             {
               model: User,
               as: 'user',
-              attributes: ['id', 'username', 'profilePicture'],
+              attributes: ['id', 'username', 'profilePicture', 'displayName'],
             },
           ],
         },
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
       ],
       order: [['createdAt', 'DESC']],
@@ -276,7 +277,7 @@ exports.getUserVotes = async (req, res, next) => {
                   // Must match Poll.belongsTo(User, { as: 'user' })
                   model: User,
                   as: 'user',
-                  attributes: ['id', 'username', 'profilePicture'],
+                  attributes: ['id', 'username', 'profilePicture', 'displayName'],
                 },
                 {
                   // Must match Poll.hasMany(PollOption, { as: 'options' })
@@ -293,7 +294,7 @@ exports.getUserVotes = async (req, res, next) => {
                     {
                       model: User,
                       as: 'user',
-                      attributes: ['id', 'username', 'profilePicture'],
+                      attributes: ['id', 'username', 'profilePicture', 'displayName'],
                     },
                   ],
                 },
@@ -305,7 +306,7 @@ exports.getUserVotes = async (req, res, next) => {
           // Must match Vote.belongsTo(User, { as: 'user' })
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'profilePicture'],
+          attributes: ['id', 'username', 'profilePicture', 'displayName'],
         },
       ],
     });
@@ -335,6 +336,7 @@ exports.getUserVotes = async (req, res, next) => {
               id: poll.user.id,
               username: poll.user.username,
               profilePicture: poll.user.profilePicture,
+             displayName: poll.user.displayName,
             }
           : null,
         options: (poll.options || []).map((opt) => ({

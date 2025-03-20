@@ -20,7 +20,7 @@ import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
 import PollModalsManager from '../../components/PollModalsManager';
 import EditProfileModal from '../../components/EditProfileModal';
-import { getUserComments } from '../../services/userService';
+import { getUserComments, getUserById } from '../../services/userService';
 import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
 import colors from '../../styles/colors';
 
@@ -87,9 +87,19 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loggedInUser?.id) return;
-    fetchStats(loggedInUser.id, token);
-    fetchUserPollsPage(token, loggedInUser.id, userPollPageSize, 0);
-  }, [loggedInUser?.id, token]);
+  
+    // Re-fetch the user from server
+    getUserById(loggedInUser.id, token)
+      .then((freshUser) => {
+        // Overwrite the local AuthContext user with the updated data
+        login(freshUser, token);
+  
+        // Then fetch stats, polls, etc.
+        fetchStats(freshUser.id, token);
+        fetchUserPollsPage(token, freshUser.id, userPollPageSize, 0);
+      })
+      .catch((err) => console.error('Error refreshing user:', err));
+  }, [loggedInUser?.id, token]);  
 
   // ─────────────────────────────────────────────────────────────────────────────
   // useFocusEffect: re-fetch data for the current tab whenever screen regains focus

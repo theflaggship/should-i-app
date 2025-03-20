@@ -30,7 +30,7 @@ const setupCommentSocket = (wss) => {
 
         // Include user details
         const commentWithUser = await Comment.findByPk(newComment.id, {
-          include: [{ model: User, attributes: ['id', 'username', 'profilePicture'] }],
+          include: [{ model: User, attributes: ['id', 'username', 'profilePicture', 'displayName'], }],
         });
 
         // Prepare broadcast data

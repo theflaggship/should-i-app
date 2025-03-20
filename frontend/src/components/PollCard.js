@@ -296,7 +296,7 @@ const PollCard = ({
                     styles.fillBar,
                     fillBarDynamicRadius,
                     {
-                      backgroundColor: isVoted ? '#b1f3e7' : '#e4edf5',
+                      backgroundColor: isVoted ? '#A4FFE4' : '#e4edf5',
                     },
                     fillWidthStyle,
                   ]}

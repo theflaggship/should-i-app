@@ -15,11 +15,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../../context/AuthContext';
-import { usePollsStore } from '../../store/usePollsStore';
+import { usePollsStore } from '../../store/usePollsStore'; // <--- 1) import here
 import PollCard from '../../components/PollCard';
 import PollModalsManager from '../../components/PollModalsManager';
 import colors from '../../styles/colors';
-import { deletePoll, updatePoll } from '../../services/pollService';
+import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const { height } = Dimensions.get('window');
@@ -31,40 +31,28 @@ const TABS = {
 };
 
 const HomeScreen = () => {
-  const { token } = useContext(AuthContext);
+  // Pull user + token from AuthContext
+  const { user, token } = useContext(AuthContext);
 
-  // Extract the relevant data & actions from your Zustand store
+  // The poll store references
   const {
-    // Arrays
-    polls,             // For "Discover"
-    followingPolls,    // For "Following"
-
-    // Loading/error states
+    polls,
+    followingPolls,
     loading,
     error,
-
-    // "Discover" pagination
-    discoverOffset,
     discoverPageSize,
     discoverTotalCount,
     fetchAllPollsPage,
     loadMorePollsPage,
-
-    // "Following" pagination
-    followingOffset,
     followingPageSize,
     followingTotalCount,
     fetchFollowingPollsPage,
     loadMoreFollowingPolls,
-
-    // Remove poll from store
     removePoll,
   } = usePollsStore();
 
-  // Keep track of which tab is selected
+  // We store which tab is selected
   const [selectedTab, setSelectedTab] = useState(TABS.DISCOVER);
-
-  // For pull-to-refresh spinner
   const [refreshing, setRefreshing] = useState(false);
 
   // Optional: for an animated top bar
@@ -78,6 +66,16 @@ const HomeScreen = () => {
 
   // Reference to PollModalsManager (for delete/edit actions)
   const pollModalsRef = useRef(null);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2) On mount (or user changes), call initPolls once to connect WS
+  // ─────────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (user?.id && token) {
+      // This calls connectVoteSocket(...) & connectCommentSocket(...) in the store
+      usePollsStore.getState().initPolls(token, user.id);
+    }
+  }, [user?.id, token]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // On mount: load the first page for "Discover"
@@ -96,13 +94,10 @@ const HomeScreen = () => {
   const handleTabPress = async (tab) => {
     setSelectedTab(tab);
     setRefreshing(true);
-
     try {
       if (tab === TABS.DISCOVER) {
-        // Reload from offset=0
         await fetchAllPollsPage(token, discoverPageSize, 0);
       } else {
-        // TABS.FOLLOWING
         await fetchFollowingPollsPage(token, followingPageSize, 0);
       }
     } catch (err) {
@@ -133,26 +128,32 @@ const HomeScreen = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Decide which data array & pagination to use
   // ─────────────────────────────────────────────────────────────────────────────
-  const dataToRender = selectedTab === TABS.DISCOVER ? polls : followingPolls;
+  const dataToRender =
+    selectedTab === TABS.DISCOVER ? polls : followingPolls;
+
   const totalCount =
     selectedTab === TABS.DISCOVER ? discoverTotalCount : followingTotalCount;
-  const currentOffset =
-    selectedTab === TABS.DISCOVER ? discoverOffset : followingOffset;
   const canLoadMore = dataToRender.length < totalCount;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Infinite scroll
   // ─────────────────────────────────────────────────────────────────────────────
   const handleEndReached = async () => {
-    if (loading) return; // avoid spamming if store is already loading
-    if (!canLoadMore) return; // no more data
-
-    // Load more
+    if (loading || !canLoadMore) return;
     if (selectedTab === TABS.DISCOVER) {
       await loadMorePollsPage(token);
     } else {
       await loadMoreFollowingPolls(token);
     }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Voting
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleVote = (pollId, optionId) => {
+    if (!user?.id) return; // Make sure we have a numeric user.id
+    // This calls the WS client
+    sendVoteWS(user.id, pollId, optionId);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -193,7 +194,6 @@ const HomeScreen = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────────
-  // If there's a global error from the store
   if (error) {
     return (
       <View style={styles.center}>
@@ -202,7 +202,6 @@ const HomeScreen = () => {
     );
   }
 
-  // If loading initially and no data yet
   if (loading && dataToRender.length === 0) {
     return (
       <View style={styles.center}>
@@ -213,13 +212,11 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* If you want an animated top bar, wrap in an Animated.View
-      <Animated.View style={{ transform: [{ translateY: navbarTranslate }] }}>
-        ...
-      </Animated.View>
-      */}
       <View style={styles.navbar}>
-        <Image style={styles.logo} source={require('../../../graphics/whicha_logo.png')} />
+        <Image
+          style={styles.logo}
+          source={require('../../../graphics/whicha_logo.png')}
+        />
       </View>
 
       {/* Tabs row */}
@@ -270,11 +267,14 @@ const HomeScreen = () => {
                 : styles.pollCardContainer
             }
           >
-            <PollCard poll={item} onOpenMenu={handleOpenMenu} />
+            <PollCard
+              poll={item}
+              onOpenMenu={handleOpenMenu}
+              onVote={handleVote}
+            />
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 16 }}
-        // Pull-to-refresh
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -284,15 +284,12 @@ const HomeScreen = () => {
             progressViewOffset={110}
           />
         }
-        // Animate the scroll for a floating navbar
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
         )}
-        // Infinite scroll
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.7}
-        // Footer spinner if loading more
         ListFooterComponent={
           loading && dataToRender.length > 0 ? (
             <ActivityIndicator color={colors.primary} style={{ margin: 12 }} />
@@ -300,7 +297,6 @@ const HomeScreen = () => {
         }
       />
 
-      {/* Poll Modals Manager */}
       <PollModalsManager
         ref={pollModalsRef}
         onDeletePoll={handleDeletePoll}
@@ -339,7 +335,7 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: 'row',
-    marginTop: 100, // so it's below the nav bar
+    marginTop: 100,
     backgroundColor: '#f0f0f0',
   },
   tabButton: {

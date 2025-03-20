@@ -474,14 +474,14 @@ export const usePollsStore = create((set, get) => ({
         limit,
         offset
       );
-  
+
       // 1) Group the raw comments by pollId
       const groupedMap = {};
       comments.forEach((comment) => {
         const p = comment.poll;
         if (!p) return; // skip if there's no poll on the comment
         const pollId = p.id;
-  
+
         // If we haven't seen this poll yet, create an entry
         if (!groupedMap[pollId]) {
           groupedMap[pollId] = {
@@ -498,7 +498,7 @@ export const usePollsStore = create((set, get) => ({
             userComments: [],
           };
         }
-  
+
         // Add this comment to that poll's userComments array
         groupedMap[pollId].userComments.push({
           id: comment.id,
@@ -507,13 +507,13 @@ export const usePollsStore = create((set, get) => ({
           user: comment.user,
         });
       });
-  
+
       // 2) Convert the map to an array
       const groupedArray = Object.values(groupedMap);
-  
+
       // 3) (Optional) sort by poll creation date or some other criteria
       // groupedArray.sort((a, b) => new Date(b.poll.createdAt) - new Date(a.poll.createdAt));
-  
+
       // 4) Store them in userComments
       set({
         userComments: groupedArray,
@@ -527,8 +527,8 @@ export const usePollsStore = create((set, get) => ({
       set({ loading: false });
     }
   },
-  
-  
+
+
 
   loadMoreUserCommentsPage: async (token, userId) => {
     const {
@@ -610,6 +610,7 @@ export const usePollsStore = create((set, get) => ({
           polls: state.polls,
           userPolls: state.userPolls,
           votedPolls: state.votedPolls,
+          followingPolls: state.followingPolls,
         };
       }
 
@@ -634,10 +635,18 @@ export const usePollsStore = create((set, get) => ({
         return { ...p, options: mergedOptions, userVote: userVote ?? null };
       });
 
+      // 4) followingPolls
+      const newFollowing = state.followingPolls.map((p) => {
+        if (p.id !== pollId) return p;
+        const mergedOptions = mergeOptions(p.options, updatedOptions);
+        return { ...p, options: mergedOptions, userVote: userVote ?? null };
+      });
+
       return {
         polls: newPolls,
         userPolls: newUserPolls,
         votedPolls: newVotedPolls,
+        followingPolls: newFollowing,
       };
     });
 
@@ -673,6 +682,7 @@ export const usePollsStore = create((set, get) => ({
           polls: state.polls,
           userPolls: state.userPolls,
           votedPolls: state.votedPolls,
+          followingPolls: state.followingPolls,
         };
       }
 
@@ -706,6 +716,7 @@ export const usePollsStore = create((set, get) => ({
         polls: newPolls,
         userPolls: state.userPolls,
         votedPolls: state.votedPolls,
+        followingPolls: state.followingPolls,
       };
     });
   },

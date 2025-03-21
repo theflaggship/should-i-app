@@ -364,6 +364,8 @@ const styles = StyleSheet.create({
     paddingLeft: 24,
     paddingRight: 40, // Ensure there's room for the minus button
     color: '#fff',
+    borderWidth: .3,
+    borderColor: colors.light,
   },
   minusButton: {
     position: 'absolute',

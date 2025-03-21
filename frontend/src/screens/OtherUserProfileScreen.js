@@ -25,7 +25,7 @@ import { useUserStatsStore } from '../store/useUserStatsStore';
 import PollCard from '../components/PollCard';
 import VoteCard from '../components/VoteCard';
 import CommentCard from '../components/CommentCard';
-import { Check } from 'react-native-feather';
+import { Check, ArrowLeftCircle } from 'react-native-feather';
 import colors from '../styles/colors';
 
 const TABS = {
@@ -391,7 +391,7 @@ export default function OtherUserProfileScreen() {
     <View style={styles.container}>
       {/* Custom back button on top of user pic */}
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>Back</Text>
+        <ArrowLeftCircle width={30} color={colors.light} />
       </TouchableOpacity>
 
       {/* The top header with user pic + follow button */}
@@ -409,7 +409,7 @@ export default function OtherUserProfileScreen() {
               styles.followButton,
               isFollowing
                 ? {
-                    backgroundColor: '#2a3d52',
+                    backgroundColor: colors.input,
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#21D0B2',
+    borderColor: colors.secondary,
   },
   followButtonText: {
     color: colors.dark,

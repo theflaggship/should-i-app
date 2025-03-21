@@ -211,6 +211,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: 16,
     color: colors.light,
+    borderWidth: .3,
+    borderColor: colors.light,
   },
 
   // Profile Picture + Camera Button

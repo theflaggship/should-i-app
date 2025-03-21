@@ -12,7 +12,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Check } from 'react-native-feather';
+import { Check, ArrowLeftCircle } from 'react-native-feather';
 import colors from '../styles/colors';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -28,14 +28,14 @@ const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 export default function FollowersFollowingScreen({ route }) {
   const navigation = useNavigation();
   const { mode, userId } = route.params;
-  const { token } = useContext(AuthContext);
+  const { token, user: loggedInUser } = useContext(AuthContext);
   const { incrementFollowing, decrementFollowing } = useUserStatsStore();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState({});
-  
-  // Search state
+
+  // For real-time search
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -46,11 +46,38 @@ export default function FollowersFollowingScreen({ route }) {
     setLoading(true);
     try {
       let data = [];
+
       if (mode === 'followers') {
+        // 1) Load all users who follow "userId"
         data = await getFollowers(userId, token);
+
+        // 2) Also see who *I* (the loggedInUser) am following, so we can show correct amIFollowing
+        //    (If I am not logged in or user is null, skip.)
+        if (loggedInUser?.id && token) {
+          const iFollow = await getFollowing(loggedInUser.id, token);
+          const iFollowIDs = iFollow.map((u) => u.id);
+
+          // Mark amIFollowing = true if in my "iFollow" list
+          data = data.map((u) => ({
+            ...u,
+            amIFollowing: iFollowIDs.includes(u.id),
+          }));
+        }
       } else {
+        // mode === 'following'
+        // These are people that "userId" is following
         data = await getFollowing(userId, token);
+
+        // If I'm literally looking at *my own* "following" list,
+        // we can assume amIFollowing = true. But to be safe, do the same check:
+        // If the server does not provide amIFollowing, forcibly set it true
+        data = data.map((u) => ({
+          ...u,
+          amIFollowing:
+            typeof u.amIFollowing === 'boolean' ? u.amIFollowing : true,
+        }));
       }
+
       setUsers(data);
     } catch (err) {
       console.error('Fetch error:', err.response?.data?.error || err.message);
@@ -59,15 +86,19 @@ export default function FollowersFollowingScreen({ route }) {
     }
   };
 
-  // Follow/Unfollow toggle
+  // Follow/Unfollow
   const handleToggle = async (item, idx) => {
-    if (toggling[item.id]) return;
+    if (toggling[item.id]) return; // prevent spamming
     setToggling((prev) => ({ ...prev, [item.id]: true }));
 
     const wasFollowing = item.amIFollowing;
+
+    // Update local state immediately for instant UI feedback
     const updated = [...users];
     updated[idx].amIFollowing = !wasFollowing;
     setUsers(updated);
+
+    // Update user stats
     wasFollowing ? decrementFollowing() : incrementFollowing();
 
     try {
@@ -80,7 +111,8 @@ export default function FollowersFollowingScreen({ route }) {
       const msg = err.response?.data?.error || err.message;
       if (!msg.toLowerCase().includes('already following')) {
         console.error('Follow toggle failed:', msg);
-        updated[idx].amIFollowing = wasFollowing; // revert
+        // revert local change
+        updated[idx].amIFollowing = wasFollowing;
         setUsers(updated);
         wasFollowing ? incrementFollowing() : decrementFollowing();
       }
@@ -89,39 +121,39 @@ export default function FollowersFollowingScreen({ route }) {
     }
   };
 
-  // Navigate to a user's profile
+  // Tapping user row => navigate to profile
   const handleUserPress = (someUserId) => {
-    // Adjust route name or param as needed
     navigation.navigate('OtherUserProfile', { userId: someUserId });
   };
 
-  // Filter array based on searchTerm
+  // Filter by searchTerm
   const filteredUsers = users.filter((u) => {
     const lowerSearch = searchTerm.toLowerCase();
-    const nameMatches = u.displayName?.toLowerCase().includes(lowerSearch);
-    const userMatches = u.username?.toLowerCase().includes(lowerSearch);
-    return nameMatches || userMatches;
+    return (
+      u.displayName?.toLowerCase().includes(lowerSearch) ||
+      u.username?.toLowerCase().includes(lowerSearch)
+    );
   });
 
   const renderItem = ({ item, index }) => {
     const name = item.displayName || item.username;
     const isFollowing = item.amIFollowing;
+    // If we’re in the followers list, user might be isFollowingMe => “Follow Back”
     const followBack = !isFollowing && item.isFollowingMe;
 
     return (
       <TouchableOpacity
         style={styles.userRow}
         activeOpacity={0.8}
-        // If user taps the row (but NOT the follow button), we go to their profile
         onPress={() => handleUserPress(item.id)}
       >
-        {/* User avatar */}
+        {/* Avatar */}
         <Image
           source={{ uri: item.profilePicture || DEFAULT_PROFILE_IMG }}
           style={styles.avatar}
         />
 
-        {/* User info */}
+        {/* User Info */}
         <View style={styles.userInfo}>
           <Text style={styles.displayName}>{name}</Text>
           {item.displayName && item.username ? (
@@ -155,7 +187,12 @@ export default function FollowersFollowingScreen({ route }) {
             {isFollowing ? 'Following' : followBack ? 'Follow Back' : 'Follow'}
           </Text>
           {isFollowing && (
-            <Check width={14} height={14} color={colors.secondary} style={{ marginLeft: 4 }} />
+            <Check
+              width={14}
+              height={14}
+              color={colors.dark}
+              style={{ marginLeft: 4 }}
+            />
           )}
         </TouchableOpacity>
       </TouchableOpacity>
@@ -170,7 +207,7 @@ export default function FollowersFollowingScreen({ route }) {
         style={styles.backButton}
         onPress={() => navigation.navigate('ProfileMain')}
       >
-        <Text style={styles.backButtonText}>Back</Text>
+        <ArrowLeftCircle width={30} color={colors.dark} />
       </TouchableOpacity>
 
       <Text style={styles.header}>{screenTitle}</Text>
@@ -178,7 +215,7 @@ export default function FollowersFollowingScreen({ route }) {
       {/* Search bar */}
       <TextInput
         style={styles.searchInput}
-        placeholder="Search by username or display name..."
+        placeholder="Search users..."
         placeholderTextColor="#999"
         value={searchTerm}
         onChangeText={setSearchTerm}
@@ -204,10 +241,11 @@ export default function FollowersFollowingScreen({ route }) {
   );
 }
 
+// ------------------ STYLES ------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark,
+    backgroundColor: colors.appBackground,
     paddingTop: 100,
   },
   backButton: {
@@ -217,23 +255,23 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButtonText: {
-    color: colors.light,
+    color: colors.dark,
     fontSize: 16,
   },
   header: {
     fontSize: 20,
-    color: '#fff',
+    color: colors.dark,
     marginBottom: 12,
     fontWeight: 'bold',
     paddingHorizontal: 16,
   },
   searchInput: {
-    backgroundColor: colors.input,
+    backgroundColor: colors.light,
     borderRadius: 8,
     marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    color: '#fff',
+    color: colors.dark,
     marginBottom: 12,
   },
   list: {
@@ -242,7 +280,7 @@ const styles = StyleSheet.create({
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.input,
+    backgroundColor: '#fff',
     borderRadius: 8,
     padding: 12,
     marginBottom: 10,
@@ -252,6 +290,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.onDarkPlaceHolder,
   },
   userInfo: {
     flex: 1,
@@ -259,16 +299,16 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: 16,
-    color: '#fff',
+    color: colors.dark,
     fontWeight: '600',
   },
   username: {
     fontSize: 14,
-    color: '#aaa',
+    color: colors.primary,
   },
   personalSummary: {
     fontSize: 12,
-    color: '#aaa',
+    color: colors.onDarkPlaceHolder,
     marginTop: 4,
   },
   followsYou: {
@@ -284,9 +324,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  buttonFollow: { backgroundColor: '#21D0B2', borderColor: '#21D0B2' },
-  buttonFollowing: { backgroundColor: '#2a3d52', borderColor: '#2a3d52' },
-  buttonText: { fontSize: 14, fontWeight: '600' },
-  textFollow: { color: colors.dark },
-  textFollowing: { color: colors.light },
+  buttonFollow: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  buttonFollowing: {
+    backgroundColor: colors.appBackground,
+    borderColor: colors.dark,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  textFollow: {
+    color: colors.dark,
+  },
+  textFollowing: {
+    color: colors.dark,
+  },
 });

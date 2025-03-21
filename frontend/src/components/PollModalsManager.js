@@ -210,7 +210,7 @@ import React, {
                   onPress={() => handleMenuOption('edit')}
                 >
                   <Text style={styles.menuRowText}>Edit Interaction Settings</Text>
-                  <Settings width={20} color="#ccc" />
+                  <Settings width={20} color={colors.light} />
                 </TouchableOpacity>
               )}
   
@@ -219,7 +219,7 @@ import React, {
                 onPress={() => handleMenuOption('delete')}
               >
                 <Text style={styles.menuRowText}>Delete Poll</Text>
-                <Trash2 width={20} color="#ccc" />
+                <Trash2 width={20} color={colors.light} />
               </TouchableOpacity>
             </View>
           </Modalize>
@@ -404,16 +404,18 @@ import React, {
       justifyContent: 'space-between',
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: '#2a3d52',
-      backgroundColor: '#2a3d52',
+      borderColor: colors.input,
+      backgroundColor: colors.input,
       paddingHorizontal: 28,
       paddingVertical: 14,
       marginVertical: 6,
       borderRadius: 25,
+      borderWidth: .3,
+      borderColor: colors.light,
     },
     menuRowText: {
       color: colors.light,
-      fontSize: 16,
+      fontSize: 18,
     },
   
     // Edit Interaction Settings (toggles only)

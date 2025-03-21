@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   },
   usernameSubtitle: {
     fontSize: 14,
-    color: 'gray',
+    color: colors.primary,
     lineHeight: 18,
   },
 

@@ -18,6 +18,7 @@ import PollCard from '../components/PollCard';
 import PollModalsManager from '../components/PollModalsManager';
 import { getTimeElapsed } from '../../utils/timeConversions';
 import colors from '../styles/colors';
+import { ArrowLeftCircle } from 'react-native-feather';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
@@ -162,7 +163,7 @@ const PollDetailsScreen = ({ route }) => {
       {/* Header with a Back button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>Back</Text>
+          <ArrowLeftCircle width={30} color={colors.light} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Poll Details</Text>
       </View>
@@ -306,7 +307,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   highlightedComment: {
-    backgroundColor: '#c5eefa',
+    backgroundColor: '#CDFDFE',
   },
   commentHeader: {
     flexDirection: 'row',

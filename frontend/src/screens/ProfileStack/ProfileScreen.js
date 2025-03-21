@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native'; // import useNavigation
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
 import { usePollsStore } from '../../store/usePollsStore';
 import { useUserStatsStore } from '../../store/useUserStatsStore';
@@ -20,8 +20,10 @@ import VoteCard from '../../components/VoteCard';
 import CommentCard from '../../components/CommentCard';
 import PollModalsManager from '../../components/PollModalsManager';
 import EditProfileModal from '../../components/EditProfileModal';
+import ProfileOptionsModal from '../../components/ProfileOptionsModal';
 import { getUserComments, getUserById } from '../../services/userService';
 import { deletePoll, updatePoll, sendVoteWS } from '../../services/pollService';
+import { MoreHorizontal } from 'react-native-feather';
 import colors from '../../styles/colors';
 
 const TABS = {
@@ -87,19 +89,19 @@ export default function ProfileScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loggedInUser?.id) return;
-  
+
     // Re-fetch the user from server
     getUserById(loggedInUser.id, token)
       .then((freshUser) => {
         // Overwrite the local AuthContext user with the updated data
         login(freshUser, token);
-  
+
         // Then fetch stats, polls, etc.
         fetchStats(freshUser.id, token);
         fetchUserPollsPage(token, freshUser.id, userPollPageSize, 0);
       })
       .catch((err) => console.error('Error refreshing user:', err));
-  }, [loggedInUser?.id, token]);  
+  }, [loggedInUser?.id, token]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // useFocusEffect: re-fetch data for the current tab whenever screen regains focus
@@ -117,6 +119,43 @@ export default function ProfileScreen() {
       }
     }, [selectedTab, loggedInUser?.id, token])
   );
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // User Options Press
+  // ─────────────────────────────────────────────────────────────────────────────
+  const optionsModalRef = useRef(null);
+  const signOutRequested = useRef(false);
+  const editRequested = useRef(false);
+
+  const { logout } = useContext(AuthContext);
+
+  const handleOpenOptions = () => optionsModalRef.current?.open();
+  const handleEdit = () => {
+    editRequested.current = true;
+    optionsModalRef.current?.close();
+  };
+  const handleSignOutRequest = () => {
+    signOutRequested.current = true;
+    optionsModalRef.current?.close();
+  };
+
+  const handleOptionsClosed = () => {
+    if (editRequested.current) {
+      editRequested.current = false;
+      editProfileRef.current?.openEditProfile(loggedInUser);
+      return;
+    }
+    if (signOutRequested.current) {
+      signOutRequested.current = false;
+      logout();
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    }
+  };
+
+  const handleSignOut = () => {
+    logout();
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Pull-to-refresh
@@ -425,11 +464,8 @@ export default function ProfileScreen() {
             }}
             style={styles.profileImage}
           />
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => editProfileRef.current?.openEditProfile(loggedInUser)}
-          >
-            <Text style={styles.editButtonText}>Edit Profile</Text>
+          <TouchableOpacity style={styles.optionsButton} onPress={handleOpenOptions}>
+            <MoreHorizontal width={24} height={24} color={colors.light} />
           </TouchableOpacity>
         </View>
 
@@ -551,6 +587,13 @@ export default function ProfileScreen() {
         onSavePoll={handleSavePoll}
       />
 
+      <ProfileOptionsModal
+        ref={optionsModalRef}
+        onEdit={handleEdit}
+        onSignOut={handleSignOutRequest}
+        onClosed={handleOptionsClosed}
+      />
+
       {/* Edit Profile Modal */}
       <EditProfileModal ref={editProfileRef} onSaveProfile={handleSaveProfile} />
     </View>
@@ -585,21 +628,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
   },
-  editButton: {
+  optionsButton: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
+    top: -10,            // lifts button above profile image
+    right: -10,          // hugs right edge
+    backgroundColor: colors.input,
     borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#21D0B2',
-    backgroundColor: '#21D0B2',
-  },
-  editButtonText: {
-    color: colors.dark,
-    fontSize: 14,
-    fontWeight: '600',
+    padding: 8,
   },
   usernameTitle: {
     fontSize: 20,

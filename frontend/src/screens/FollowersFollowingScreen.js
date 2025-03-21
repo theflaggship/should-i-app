@@ -1,4 +1,4 @@
-// src/screens/FollowersFollowingScreen.js
+// FollowersFollowingScreen.js
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
@@ -9,6 +9,7 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Check } from 'react-native-feather';
@@ -27,53 +28,30 @@ const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 export default function FollowersFollowingScreen({ route }) {
   const navigation = useNavigation();
   const { mode, userId } = route.params;
-
-  // Logged-in user from AuthContext
-  const { user: loggedInUser, token } = useContext(AuthContext);
-
-  // Local stats store
+  const { token } = useContext(AuthContext);
   const { incrementFollowing, decrementFollowing } = useUserStatsStore();
 
-  // Screen state
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState({});
+  
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchData();
   }, [mode, userId]);
 
-  /**
-   * Fetch data depending on the tab (Followers or Following).
-   */
   const fetchData = async () => {
     setLoading(true);
     try {
+      let data = [];
       if (mode === 'followers') {
-        // People who follow userId
-        const [followerData, iFollowData] = await Promise.all([
-          getFollowers(userId, token),         // e.g. [ { id, displayName, ... } ... ]
-          getFollowing(loggedInUser.id, token) // who I follow, so I can mark amIFollowing
-        ]);
-
-        // Mark "amIFollowing" if I follow them
-        const merged = followerData.map((f) => ({
-          ...f,
-          amIFollowing: iFollowData.some((u) => u.id === f.id),
-        }));
-        setUsers(merged);
-
+        data = await getFollowers(userId, token);
       } else {
-        // mode === 'following': People userId is following
-        const followingData = await getFollowing(userId, token);
-
-        // Mark them as amIFollowing = true if it's userId's "following" list
-        const merged = followingData.map((f) => ({
-          ...f,
-          amIFollowing: true
-        }));
-        setUsers(merged);
+        data = await getFollowing(userId, token);
       }
+      setUsers(data);
     } catch (err) {
       console.error('Fetch error:', err.response?.data?.error || err.message);
     } finally {
@@ -81,27 +59,16 @@ export default function FollowersFollowingScreen({ route }) {
     }
   };
 
-  /**
-   * Toggle Follow/Unfollow for the given user
-   * (Optimistic UI + local stats update).
-   */
+  // Follow/Unfollow toggle
   const handleToggle = async (item, idx) => {
-    if (toggling[item.id]) return; // Prevent double-taps
+    if (toggling[item.id]) return;
     setToggling((prev) => ({ ...prev, [item.id]: true }));
 
     const wasFollowing = item.amIFollowing;
     const updated = [...users];
-
-    // Flip amIFollowing in local array
     updated[idx].amIFollowing = !wasFollowing;
     setUsers(updated);
-
-    // Real-time local stat changes (my "following" count)
-    if (wasFollowing) {
-      decrementFollowing();
-    } else {
-      incrementFollowing();
-    }
+    wasFollowing ? decrementFollowing() : incrementFollowing();
 
     try {
       if (wasFollowing) {
@@ -109,82 +76,126 @@ export default function FollowersFollowingScreen({ route }) {
       } else {
         await followUser(item.id, token);
       }
-      // No immediate removal from the list in "following" mode:
-      // We'll let a future fetch remove them if I'm no longer following them.
     } catch (err) {
       const msg = err.response?.data?.error || err.message;
       if (!msg.toLowerCase().includes('already following')) {
         console.error('Follow toggle failed:', msg);
-
-        // Roll back local UI
-        updated[idx].amIFollowing = wasFollowing;
+        updated[idx].amIFollowing = wasFollowing; // revert
         setUsers(updated);
-
-        // Roll back stats
-        if (wasFollowing) {
-          incrementFollowing();
-        } else {
-          decrementFollowing();
-        }
+        wasFollowing ? incrementFollowing() : decrementFollowing();
       }
     } finally {
       setToggling((prev) => ({ ...prev, [item.id]: false }));
     }
   };
 
+  // Navigate to a user's profile
+  const handleUserPress = (someUserId) => {
+    // Adjust route name or param as needed
+    navigation.navigate('OtherUserProfile', { userId: someUserId });
+  };
+
+  // Filter array based on searchTerm
+  const filteredUsers = users.filter((u) => {
+    const lowerSearch = searchTerm.toLowerCase();
+    const nameMatches = u.displayName?.toLowerCase().includes(lowerSearch);
+    const userMatches = u.username?.toLowerCase().includes(lowerSearch);
+    return nameMatches || userMatches;
+  });
+
   const renderItem = ({ item, index }) => {
+    const name = item.displayName || item.username;
     const isFollowing = item.amIFollowing;
     const followBack = !isFollowing && item.isFollowingMe;
-    const displayName = item.displayName || item.username;
 
     return (
-      <View style={styles.userRow}>
+      <TouchableOpacity
+        style={styles.userRow}
+        activeOpacity={0.8}
+        // If user taps the row (but NOT the follow button), we go to their profile
+        onPress={() => handleUserPress(item.id)}
+      >
+        {/* User avatar */}
         <Image
           source={{ uri: item.profilePicture || DEFAULT_PROFILE_IMG }}
           style={styles.avatar}
         />
 
+        {/* User info */}
         <View style={styles.userInfo}>
-          <Text style={styles.displayName}>{displayName}</Text>
-          {!!item.displayName && <Text style={styles.username}>@{item.username}</Text>}
-          {!!item.personalSummary && <Text style={styles.summary}>{item.personalSummary}</Text>}
-          {item.isFollowingMe && <Text style={styles.followsYou}>Follows You</Text>}
+          <Text style={styles.displayName}>{name}</Text>
+          {item.displayName && item.username ? (
+            <Text style={styles.username}>@{item.username}</Text>
+          ) : null}
+
+          {item.personalSummary ? (
+            <Text style={styles.personalSummary}>{item.personalSummary}</Text>
+          ) : null}
+
+          {item.isFollowingMe && (
+            <Text style={styles.followsYou}>Follows You</Text>
+          )}
         </View>
 
-        {/* Follow/Unfollow Button */}
+        {/* Follow/Unfollow button */}
         <TouchableOpacity
           disabled={toggling[item.id]}
-          style={[styles.button, isFollowing ? styles.buttonFollowing : styles.buttonFollow]}
+          style={[
+            styles.button,
+            isFollowing ? styles.buttonFollowing : styles.buttonFollow,
+          ]}
           onPress={() => handleToggle(item, index)}
         >
-          <Text style={[styles.buttonText, isFollowing ? styles.textFollowing : styles.textFollow]}>
+          <Text
+            style={[
+              styles.buttonText,
+              isFollowing ? styles.textFollowing : styles.textFollow,
+            ]}
+          >
             {isFollowing ? 'Following' : followBack ? 'Follow Back' : 'Follow'}
           </Text>
           {isFollowing && (
             <Check width={14} height={14} color={colors.secondary} style={{ marginLeft: 4 }} />
           )}
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
+  const screenTitle = mode === 'followers' ? 'Followers' : 'Following';
+
   return (
     <View style={styles.container}>
-      {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.navigate('ProfileMain')}
+      >
         <Text style={styles.backButtonText}>Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.header}>
-        {mode === 'followers' ? 'Followers' : 'Following'}
-      </Text>
+      <Text style={styles.header}>{screenTitle}</Text>
+
+      {/* Search bar */}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by username or display name..."
+        placeholderTextColor="#999"
+        value={searchTerm}
+        onChangeText={setSearchTerm}
+      />
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 40 }} />
+        <ActivityIndicator
+          color={colors.primary}
+          size="large"
+          style={{ marginTop: 40 }}
+        />
       ) : (
         <FlatList
-          data={users}
-          keyExtractor={(item, i) => item.id?.toString() || i.toString()}
+          data={filteredUsers}
+          keyExtractor={(item, i) =>
+            item.id ? item.id.toString() : i.toString()
+          }
           renderItem={renderItem}
           contentContainerStyle={styles.list}
         />
@@ -193,29 +204,78 @@ export default function FollowersFollowingScreen({ route }) {
   );
 }
 
-// ============= STYLES =============
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.dark, paddingTop: 100 },
-  backButton: { position: 'absolute', top: 50, left: 16, zIndex: 10 },
-  backButtonText: { color: colors.light, fontSize: 16 },
-  header: { fontSize: 20, fontWeight: '600', color: colors.light, paddingHorizontal: 16, marginBottom: 12 },
-  list: { paddingHorizontal: 16 },
-
+  container: {
+    flex: 1,
+    backgroundColor: colors.dark,
+    paddingTop: 100,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 10,
+  },
+  backButtonText: {
+    color: colors.light,
+    fontSize: 16,
+  },
+  header: {
+    fontSize: 20,
+    color: '#fff',
+    marginBottom: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 16,
+  },
+  searchInput: {
+    backgroundColor: colors.input,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#fff',
+    marginBottom: 12,
+  },
+  list: {
+    paddingHorizontal: 16,
+  },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2e2e2e',
+    backgroundColor: colors.input,
     borderRadius: 8,
     padding: 12,
     marginBottom: 10,
   },
-  avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
-  userInfo: { flex: 1 },
-  displayName: { fontSize: 16, color: colors.light, fontWeight: '600' },
-  username: { fontSize: 14, color: '#aaa' },
-  summary: { fontSize: 12, color: '#aaa', marginTop: 4 },
-  followsYou: { fontSize: 12, color: '#4caf50', marginTop: 4 },
-
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  displayName: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  username: {
+    fontSize: 14,
+    color: '#aaa',
+  },
+  personalSummary: {
+    fontSize: 12,
+    color: '#aaa',
+    marginTop: 4,
+  },
+  followsYou: {
+    fontSize: 12,
+    color: '#4caf50',
+    marginTop: 4,
+  },
   button: {
     borderRadius: 20,
     paddingHorizontal: 10,
@@ -224,22 +284,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  buttonFollow: {
-    backgroundColor: '#21D0B2',
-    borderColor: '#21D0B2',
-  },
-  buttonFollowing: {
-    backgroundColor: '#2a3d52',
-    borderColor: '#2a3d52',
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  textFollow: {
-    color: colors.dark,
-  },
-  textFollowing: {
-    color: colors.light,
-  },
+  buttonFollow: { backgroundColor: '#21D0B2', borderColor: '#21D0B2' },
+  buttonFollowing: { backgroundColor: '#2a3d52', borderColor: '#2a3d52' },
+  buttonText: { fontSize: 14, fontWeight: '600' },
+  textFollow: { color: colors.dark },
+  textFollowing: { color: colors.light },
 });

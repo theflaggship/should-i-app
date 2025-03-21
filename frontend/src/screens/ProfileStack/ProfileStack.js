@@ -1,4 +1,5 @@
 // src/navigation/ProfileStackNavigator.js
+
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
@@ -11,11 +12,21 @@ const Stack = createStackNavigator();
 
 export default function ProfileStackNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{
+          animation: 'slide_from_left',
+        }} />
       <Stack.Screen name="PollDetails" component={PollDetailsScreen} />
-      <Stack.Screen name="OtherUserProfile" component={OtherUserProfileScreen}/>
-      <Stack.Screen name="FollowersFollowingScreen" component={FollowersFollowingScreen}/>
+      <Stack.Screen name="OtherUserProfile" component={OtherUserProfileScreen} />
+      <Stack.Screen name="FollowersFollowingScreen" component={FollowersFollowingScreen}
+      />
     </Stack.Navigator>
   );
 }

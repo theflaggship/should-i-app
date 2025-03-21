@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: '#2a3d52',
+    backgroundColor: colors.input,
     borderRadius: 8,
     fontSize: 16,
     padding: 16,

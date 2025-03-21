@@ -357,8 +357,8 @@ const styles = StyleSheet.create({
   optionInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#2a3d52',
-    backgroundColor: '#2a3d52',
+    borderColor: colors.input,
+    backgroundColor: colors.input,
     borderRadius: 20,
     paddingVertical: 12,
     paddingLeft: 24,

@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import { login as loginApi } from '../../services/authService';
@@ -28,6 +29,9 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.logoContainer}>
+              <Image style={styles.logo} source={require('../../../assets/logos/whicha_and_logo_primary.png')} />
+            </View>
       <Text style={styles.header}>Hello, welcome back</Text>
 
       {error && <Text style={styles.error}>{error}</Text>}
@@ -76,13 +80,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
   },
   header: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 20,
     fontWeight: '600',
     color: colors.dark,
     marginBottom: 20,
     textAlign: 'center',
   },
+  logoContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 50,      // pushes everything below further down
+  },
+  logo: {
+    width: 250,
+    height: 120,           // bump height a bit
+    resizeMode: 'contain',
+  },
   error: {
+    fontFamily: 'Quicksand-Regular',
     color: 'red',
     textAlign: 'center',
     marginBottom: 10,
@@ -90,6 +107,7 @@ const styles = StyleSheet.create({
   inputContainer: {
   },
   input: {
+    fontFamily: 'Quicksand-Regular',
     borderRadius: 25,
     backgroundColor: '#fff',
     marginBottom: 15,
@@ -105,17 +123,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   loginButtonText: {
+    fontFamily: 'Quicksand-SemiBold',
     textAlign: 'center',
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
   switchText: {
+    fontFamily: 'Quicksand-Regular',
     textAlign: 'center',
     color: colors.dark,
     fontSize: 14,
   },
   switchLink: {
+    fontFamily: 'Quicksand-Regular',
     color: colors.secondary,
     fontWeight: '500',
     textDecorationLine: 'none',

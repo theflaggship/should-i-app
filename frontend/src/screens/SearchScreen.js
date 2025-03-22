@@ -52,6 +52,7 @@ const SearchScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   input: {
+    fontFamily: 'Quicksand-Medium',
     borderWidth: 1,
     borderColor: colors.dark,
     padding: 12,
@@ -59,6 +60,7 @@ const styles = StyleSheet.create({
     marginVertical: 8
   },
   item: {
+    fontFamily: 'Quicksand-Medium',
     fontSize: 16,
     marginVertical: 4,
     color: colors.dark

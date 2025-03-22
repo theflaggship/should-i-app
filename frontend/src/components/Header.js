@@ -16,7 +16,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   headerText: {
-    color: '#fff',
+    fontFamily: 'Quicksand-Bold',
+    color: colors.light,
     fontSize: 20
   }
 });

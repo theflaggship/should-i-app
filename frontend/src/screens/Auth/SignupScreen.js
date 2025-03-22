@@ -30,11 +30,11 @@ const SignupScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <Image style={styles.logo} source={require('../../../graphics/whicha_and_logo_primary.png')} />
+        <Image style={styles.logo} source={require('../../../assets/logos/whicha_and_logo_primary.png')} />
         <Text style={styles.tagline}>Ask it. Don’t overthink it.</Text>
       </View>
 
-      <Text style={styles.header}>Create An Account.</Text>
+      <Text style={styles.header}>Sign Up Now!</Text>
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.inputContainer}>
@@ -100,6 +100,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   tagline: {
+    fontFamily: 'Quicksand-Medium',
     position: 'absolute',
     top: 100,              // move it 100px below the top of the container (adjust as needed)
     fontSize: 20,
@@ -108,6 +109,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   header: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 18,
     fontWeight: '600',
     color: colors.dark,
@@ -115,6 +117,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   error: {
+    fontFamily: 'Quicksand-Regular',
     color: 'red',
     textAlign: 'center',
     marginBottom: 10,
@@ -123,6 +126,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
+    fontFamily: 'Quicksand-Regular',
     borderRadius: 25,
     backgroundColor: '#fff',
     marginBottom: 15,
@@ -138,17 +142,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signupButtonText: {
+    fontFamily: 'Quicksand-SemiBold',
     textAlign: 'center',
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
   switchText: {
+    fontFamily: 'Quicksand-Regular',
     textAlign: 'center',
     color: colors.dark,
     fontSize: 14,
   },
   switchLink: {
+    fontFamily: 'Quicksand-Regular',
     color: colors.primary,
     fontWeight: '500',
   },

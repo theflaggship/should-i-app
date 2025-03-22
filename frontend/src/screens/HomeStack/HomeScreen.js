@@ -215,7 +215,7 @@ const HomeScreen = () => {
       <View style={styles.navbar}>
         <Image
           style={styles.logo}
-          source={require('../../../graphics/whicha_logo.png')}
+          source={require('../../../assets/logos/whicha_logo_white.png')}
         />
       </View>
 
@@ -328,8 +328,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   logo: {
-    width: 145,
-    height: 40,
+    width: 130,
+    height: 30,
     resizeMode: 'contain',
     marginTop: 30,
   },
@@ -344,6 +344,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabButtonText: {
+    fontFamily: 'Quicksand-Bold',
     fontSize: 16,
     fontWeight: '500',
     color: colors.dark,

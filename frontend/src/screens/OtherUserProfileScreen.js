@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'row',
     position: 'absolute',
-    top: -42,            // lifts button above profile image
+    top: -35,            // lifts button above profile image
     right: -5,  
     borderRadius: 20,
     paddingHorizontal: 15,

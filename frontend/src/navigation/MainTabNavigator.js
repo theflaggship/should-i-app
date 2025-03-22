@@ -5,6 +5,8 @@ import HomeStack from '../screens/HomeStack/HomeStack';
 import ProfileStack from '../screens/ProfileStack/ProfileStack';
 import { Home, PlusCircle, User, MinusCircle } from 'react-native-feather';
 import colors from '../styles/colors';
+import Logo from '../../assets/logos/whicha_logo_dark.png'
+
 
 // 1) Imports for the modal, images, and UI
 import {
@@ -149,7 +151,17 @@ const MainTabNavigator = () => {
           tabBarShowLabel: false,
           tabBarIcon: ({ color, size }) => {
             if (route.name === 'Home') {
-              return <Home color={color} size={size} />;
+              return (
+                <Image
+                  source={Logo}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    tintColor: color,
+                    resizeMode: 'contain',
+                  }}
+                />
+              );
             } else if (route.name === 'Create') {
               return <PlusCircle color={color} size={size} />;
             } else if (route.name === 'Profile') {
@@ -297,6 +309,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   cancelText: {
+    fontFamily: 'Quicksand-SemiBold',
     color: colors.light,
     fontSize: 16,
     position: 'absolute',
@@ -311,6 +324,7 @@ const styles = StyleSheet.create({
     right: 16,
   },
   askText: {
+    fontFamily: 'Quicksand-Bold',
     color: colors.dark,
     fontSize: 16,
     fontWeight: '500',
@@ -336,6 +350,7 @@ const styles = StyleSheet.create({
     borderColor: 'gray',
   },
   questionInput: {
+    fontFamily: 'Quicksand-Medium',
     flex: 1,
     borderRadius: 6,
     padding: 8,
@@ -355,6 +370,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   optionInput: {
+    fontFamily: 'Quicksand-Medium',
     flex: 1,
     borderWidth: 1,
     borderColor: colors.input,
@@ -377,6 +393,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addOptionText: {
+    fontFamily: 'Quicksand-SemiBold',
     color: '#21D0B2',
     fontWeight: '600',
   },
@@ -387,6 +404,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   lightText: {
+    fontFamily: 'Quicksand-Medium',
     color: '#dbe4ed',
     fontSize: 16,
   },

@@ -127,6 +127,7 @@ exports.getAllPolls = async (req, res, next) => {
                 id: c.user.id,
                 username: c.user.username,
                 profilePicture: c.user.profilePicture,
+                displayName: c.user.displayName,
               }
             : null,
         })),
@@ -248,6 +249,7 @@ exports.getFollowingPolls = async (req, res, next) => {
                 id: c.user.id,
                 username: c.user.username,
                 profilePicture: c.user.profilePicture,
+                displayName: c.user.displayName,
               }
             : null,
         })),
@@ -342,6 +344,7 @@ exports.getPollById = async (req, res, next) => {
               id: c.user.id,
               username: c.user.username,
               profilePicture: c.user.profilePicture,
+              displayName: c.user.displayName,
             }
           : null,
       })),

@@ -410,10 +410,11 @@ import React, {
       paddingVertical: 14,
       marginVertical: 6,
       borderRadius: 25,
-      borderWidth: .3,
+      borderWidth: .5,
       borderColor: colors.light,
     },
     menuRowText: {
+      fontFamily: 'Quicksand-Medium',
       color: colors.light,
       fontSize: 18,
     },
@@ -423,6 +424,7 @@ import React, {
       padding: 25,
     },
     editTitle: {
+      fontFamily: 'Quicksand-SemiBold',
       fontSize: 18,
       color: colors.light,
       marginBottom: 16,
@@ -435,6 +437,7 @@ import React, {
       marginVertical: 10,
     },
     toggleLabel: {
+      fontFamily: 'Quicksand-Medium',
       fontSize: 16,
       color: colors.light,
     },
@@ -446,14 +449,15 @@ import React, {
       marginTop: 20,
     },
     saveButtonText: {
+      fontFamily: 'Quicksand-SemiBold',
       color: colors.dark,
       fontSize: 16,
       fontWeight: '600',
     },
     cancelButton: {
-      borderWidth: 1,
-      backgroundColor: '#2a3d52',
-      borderColor: '#2a3d52',
+      borderWidth: .5,
+      backgroundColor: colors.input,
+      borderColor: colors.light,
       borderRadius: 20,
       paddingVertical: 12,
       alignItems: 'center',
@@ -461,6 +465,7 @@ import React, {
       marginBottom: 8,
     },
     cancelButtonText: {
+      fontFamily: 'Quicksand-SemiBold',
       color: colors.light,
       fontSize: 16,
       fontWeight: '500',
@@ -477,6 +482,7 @@ import React, {
       paddingHorizontal: 16,
     },
     editCancelText: {
+      fontFamily: 'Quicksand-Medium',
       color: colors.light,
       fontSize: 16,
       position: 'absolute',
@@ -491,16 +497,17 @@ import React, {
       right: 16,
     },
     editSaveText: {
+      fontFamily: 'Quicksand-Bold',
       color: colors.dark,
       fontSize: 16,
-      fontWeight: '500',
     },
     fullEditContent: {
       paddingHorizontal: 16,
       paddingBottom: 16,
     },
     editInput: {
-      backgroundColor: '#2a3d52',
+      fontFamily: 'Quicksand-Medium',
+      backgroundColor: colors.input,
       borderRadius: 8,
       fontSize: 16,
       padding: 25,
@@ -508,6 +515,8 @@ import React, {
       marginTop: 15,
       marginBottom: 20,
       textAlignVertical: 'top',
+      borderWidth: .5,
+      borderColor: colors.light,
     },
     optionContainer: {
       position: 'relative',
@@ -515,9 +524,10 @@ import React, {
       width: '100%',
     },
     optionInput: {
-      borderWidth: 1,
-      borderColor: '#2a3d52',
-      backgroundColor: '#2a3d52',
+      fontFamily: 'Quicksand-Medium',
+      borderWidth: .3,
+      borderColor: colors.light,
+      backgroundColor: colors.input,
       borderRadius: 20,
       paddingVertical: 12,
       paddingLeft: 24,
@@ -535,6 +545,7 @@ import React, {
       marginBottom: 16,
     },
     addOptionText: {
+      fontFamily: 'Quicksand-Medium',
       color: '#21D0B2',
       fontWeight: '600',
     },
@@ -544,12 +555,14 @@ import React, {
       padding: 25,
     },
     deleteTitle: {
+      fontFamily: 'Quicksand-SemiBold',
       fontSize: 18,
       color: colors.light,
       fontWeight: '700',
       marginBottom: 14,
     },
     deleteSubtitle: {
+      fontFamily: 'Quicksand-Medium',
       fontSize: 14,
       color: colors.light,
       marginBottom: 20,
@@ -564,6 +577,7 @@ import React, {
       marginTop: 4,
     },
     deleteConfirmButtonText: {
+      fontFamily: 'Quicksand-SemiBold',
       color: colors.light,
       fontSize: 16,
       fontWeight: '600',

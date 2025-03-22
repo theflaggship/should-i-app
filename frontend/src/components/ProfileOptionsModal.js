@@ -28,12 +28,6 @@ const ProfileOptionsModal = forwardRef(({ onEdit, onSignOut, onClosed }, ref) =>
         <Text style={styles.menuRowText}>Sign Out</Text>
         <LogOut width={20} color={colors.light} />
       </TouchableOpacity>
-      {/* <TouchableOpacity style={styles.editButtonContainer} onPress={onEdit}>
-        <Text style={styles.editButtonText}>Edit Profile</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.signOutButtonContainer} onPress={onSignOut}>
-        <Text style={styles.signOutButtonText}>Sign Out</Text>
-      </TouchableOpacity> */}
     </View>
   </Modalize>
 ));

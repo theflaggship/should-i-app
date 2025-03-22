@@ -412,12 +412,14 @@ const styles = StyleSheet.create({
 
   // ============= NEW STYLES FOR DISPLAY NAME & SUBTITLE =============
   displayName: {
+    fontFamily: 'Quicksand-SemiBold',
     fontSize: 16,
     fontWeight: '600',
     color: colors.dark,
     lineHeight: 20,
   },
   usernameSubtitle: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 14,
     color: colors.primary,
     lineHeight: 18,
@@ -430,15 +432,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   timestamp: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 12,
     color: 'gray',
     marginLeft: 'auto',
   },
-  mainBody: {},
   question: {
+    fontFamily: 'Quicksand-Medium',
     fontSize: 18,
     color: colors.dark,
-    marginBottom: 12,
+    marginBottom: 14,
+    marginTop: 5,
+    marginLeft: 5,
   },
   optionsContainer: {
     flexDirection: 'column',
@@ -486,6 +491,7 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   optionText: {
+    fontFamily: 'Quicksand-Medium',
     fontSize: 16,
     color: colors.dark,
   },
@@ -496,6 +502,7 @@ const styles = StyleSheet.create({
     color: colors.dark,
   },
   percentageText: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 12,
     color: 'gray',
     fontWeight: '400',
@@ -515,6 +522,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   commentCount: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 14,
     color: colors.dark,
   },
@@ -533,12 +541,13 @@ const styles = StyleSheet.create({
     borderColor: 'gray',
     marginRight: 4,
   },
-  totalVoteCheck: {},
   voteCount: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 14,
     color: colors.dark,
   },
   detailedTimestamp: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 14,
     color: 'gray',
     marginTop: 4,

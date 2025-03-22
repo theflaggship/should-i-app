@@ -632,28 +632,28 @@ const styles = StyleSheet.create({
     top: -10,            // lifts button above profile image
     right: -10,          // hugs right edge
     backgroundColor: colors.input,
+    borderWidth: .5,
+    borderColor: colors.light,
     borderRadius: 20,
-    padding: 8,
-  },
-  usernameTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.light,
-    marginBottom: 4,
+    paddingHorizontal: 8,
+    paddingVertical:2,
   },
   displayName: {
+    fontFamily: 'Quicksand-SemiBold',
     fontSize: 20,
     fontWeight: '600',
     color: colors.light,
     marginBottom: 2,
   },
   usernameSubtitle: {
+    fontFamily: 'Quicksand-Medium',
     fontSize: 16,
     color: colors.secondaryLight,
     marginBottom: 4,
   },
   summaryText: {
-    fontSize: 14,
+    fontFamily: 'Quicksand-Medium',
+    fontSize: 16,
     color: colors.light,
     marginBottom: 12,
     marginTop: 2,
@@ -669,11 +669,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
+    fontFamily: 'Quicksand-SemiBold',
     fontSize: 16,
     fontWeight: '600',
     color: colors.secondaryLight,
   },
   statLabel: {
+    fontFamily: 'Quicksand-SemiBold',
     fontSize: 12,
     color: colors.secondaryLight,
   },
@@ -687,6 +689,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabButtonText: {
+    fontFamily: 'Quicksand-Bold',
     color: colors.dark,
     fontSize: 16,
     fontWeight: '500',

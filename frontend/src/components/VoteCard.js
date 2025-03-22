@@ -39,20 +39,20 @@ const VoteCard = ({ poll, onOpenMenu, user }) => {
 
     const handleNavigateToUserProfile = () => {
         if (!poll?.user?.id) return;
-    
+
         const finalUserId = poll.user.id;
         const currentRouteName = route.name;
         const currentUserId = route.params?.userId;
         const myUserId = user?.id;
-    
+
         // ... logic to skip if we’re on that same user’s profile ...
         if (currentRouteName === 'OtherUserProfile' && currentUserId === finalUserId) {
-          return;
+            return;
         }
         if ((currentRouteName === 'ProfileMain' || currentRouteName === 'Profile') && myUserId === finalUserId) {
-          return;
+            return;
         }
-    
+
         // otherwise, navigate
         navigation.navigate('OtherUserProfile', { userId: finalUserId });
     };
@@ -93,17 +93,28 @@ const VoteCard = ({ poll, onOpenMenu, user }) => {
             >
                 <TouchableOpacity
                     style={styles.userRowLeft}
-                    onPress={handleNavigateToUserProfile}
                     activeOpacity={0.8}
+                    onPress={handleNavigateToUserProfile}
                     pointerEvents="box-only"
                 >
                     <Image
                         source={{ uri: finalUser.profilePicture || DEFAULT_PROFILE_IMG }}
                         style={styles.profileImage}
                     />
-                    <Text style={styles.username}>
-                        {finalUser.username || 'Unknown'}
-                    </Text>
+
+                    {/* SHOW displayName if available, otherwise fallback to username */}
+                    {finalUser.displayName ? (
+                        <View>
+                            <Text style={styles.displayName}>{finalUser.displayName}</Text>
+                            <Text style={styles.usernameSubtitle}>
+                                @{finalUser.username ?? 'Unknown'}
+                            </Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.username}>
+                            {finalUser.username ?? 'Unknown'}
+                        </Text>
+                    )}
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.userRowRight}
@@ -197,6 +208,7 @@ const styles = StyleSheet.create({
         paddingLeft: 20,
     },
     removedVoteText: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 14,
         color: colors.dark,
         textAlign: 'left',
@@ -221,12 +233,27 @@ const styles = StyleSheet.create({
         borderWidth: 0.5,
         borderColor: 'gray',
     },
-    username: {
+    displayName: {
+        fontFamily: 'Quicksand-SemiBold',
         fontSize: 16,
         fontWeight: '600',
         color: colors.dark,
-    },
+        lineHeight: 20,
+      },
+      usernameSubtitle: {
+        fontFamily: 'Quicksand-Regular',
+        fontSize: 14,
+        color: colors.primary,
+        lineHeight: 18,
+      },
+      // Fallback if no displayName
+      username: {
+        fontFamily: 'Quicksand-SemiBold',
+        fontSize: 16,
+        color: colors.dark,
+      },
     timestamp: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 12,
         color: 'gray',
     },
@@ -235,9 +262,11 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     question: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 18,
         color: colors.dark,
-        fontWeight: '400',
+        marginTop: 5,
+        marginLeft: 5,
     },
     optionContainer: {
         position: 'relative',
@@ -267,6 +296,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     optionText: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 16,
         color: colors.dark,
     },
@@ -277,6 +307,7 @@ const styles = StyleSheet.create({
         color: colors.dark,
     },
     percentageText: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 12,
         color: 'gray',
         fontWeight: '400',
@@ -298,6 +329,7 @@ const styles = StyleSheet.create({
         marginRight: 2,
     },
     commentCount: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 14,
         color: colors.dark,
     },
@@ -320,8 +352,8 @@ const styles = StyleSheet.create({
         borderColor: 'gray',
         marginRight: 4,
     },
-    totalVoteCheck: {},
     voteCount: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 14,
         color: colors.dark,
     },

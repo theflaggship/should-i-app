@@ -222,6 +222,7 @@ exports.getUserComments = async (req, res, next) => {
                     id: comment.poll.user.id,
                     username: comment.poll.user.username,
                     profilePicture: comment.poll.user.profilePicture,
+                    displayName: comment.poll.user.displayName,
                   }
                 : null,
             }
@@ -231,6 +232,7 @@ exports.getUserComments = async (req, res, next) => {
               id: comment.user.id,
               username: comment.user.username,
               profilePicture: comment.user.profilePicture,
+              displayName: comment.user.displayName,
             }
           : null,
       };

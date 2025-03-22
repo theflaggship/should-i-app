@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     header: {
+        fontFamily: 'Quicksand-SemiBold',
         fontSize: 20,
         color: colors.dark,
         marginBottom: 12,
@@ -254,6 +255,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     searchInput: {
+        fontFamily: 'Quicksand-Medium',
         backgroundColor: colors.light,
         borderRadius: 8,
         marginHorizontal: 16,
@@ -286,20 +288,24 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     displayName: {
+        fontFamily: 'Quicksand-SemiBold',
         fontSize: 16,
         color: colors.dark,
         fontWeight: '600',
     },
     username: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 14,
         color: colors.primary,
     },
     personalSummary: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 12,
         color: '#777',
         marginTop: 4,
     },
     followsYou: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 12,
         color: '#4caf50',
         marginTop: 4,
@@ -313,8 +319,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     buttonFollow: {
-        backgroundColor: colors.secondary
-        ,
+        backgroundColor: colors.secondary,
         borderColor: colors.secondaryLight,
     },
     buttonFollowing: {
@@ -322,6 +327,7 @@ const styles = StyleSheet.create({
         borderColor: colors.dark,
     },
     buttonText: {
+        fontFamily: 'Quicksand-Medium',
         fontSize: 14,
         fontWeight: '600',
     },

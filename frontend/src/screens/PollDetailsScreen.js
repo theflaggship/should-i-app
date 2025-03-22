@@ -98,6 +98,7 @@ const PollDetailsScreen = ({ route }) => {
         id: user.id,
         username: user.username,
         profilePicture: user.profilePicture,
+        displayName: user.displayName,
       },
     };
 
@@ -185,24 +186,17 @@ const PollDetailsScreen = ({ route }) => {
           if (!comment) return null;
           // Check if this comment is highlighted
           const isHighlighted = highlightCommentId && comment.id === highlightCommentId;
-
-          const userPic = comment.user?.profilePicture || DEFAULT_PROFILE_IMG;
-          const username = comment.user?.username || 'Unknown';
+          const commenter = comment.user || {};
+          const name = commenter.displayName || commenter.username || 'Unknown';
+          const userPic = commenter.profilePicture || DEFAULT_PROFILE_IMG;
 
           return (
             <View style={styles.commentItem}>
               <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
-              <View
-                style={[
-                  styles.commentContent,
-                  isHighlighted && styles.highlightedComment,
-                ]}
-              >
+              <View style={[styles.commentContent, isHighlighted && styles.highlightedComment]}>
                 <View style={styles.commentHeader}>
-                  <Text style={styles.commentUsername}>{username}</Text>
-                  <Text style={styles.commentTimestamp}>
-                    {getTimeElapsed(comment.createdAt)}
-                  </Text>
+                  <Text style={styles.commentUsername}>{name}</Text>
+                  <Text style={styles.commentTimestamp}>{getTimeElapsed(comment.createdAt)}</Text>
                 </View>
                 <Text style={styles.commentText}>{comment.text}</Text>
               </View>
@@ -312,21 +306,23 @@ const styles = StyleSheet.create({
   commentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    alignItems: 'center',
+    marginBottom: 4,
   },
   commentUsername: {
+    fontFamily: 'Quicksand-SemiBold',
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    color: colors.dark,
   },
   commentTimestamp: {
+    fontFamily: 'Quicksand-Medium',
     fontSize: 12,
     color: 'gray',
-    marginLeft: 10,
   },
   commentText: {
+    fontFamily: 'Quicksand-Regular',
     fontSize: 14,
-    color: '#333',
+    color: colors.dark,
   },
   commentInputContainer: {
     flexDirection: 'row',

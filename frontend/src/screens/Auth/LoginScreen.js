@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     color: colors.dark,
   },
   loginButton: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 20,
     marginBottom: 20,
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   switchLink: {
-    color: colors.primary,
+    color: colors.secondary,
     fontWeight: '500',
     textDecorationLine: 'none',
   },

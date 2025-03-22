@@ -5,6 +5,7 @@ export default {
     pollBackground: '#FFFFFF',
     primary: '#4A0EEE',
     secondary: '#68DFD0',
+    secondaryLight: '#CDFDFE',
     dark: '#00002D',
     light: '#dbe4ed',
     input: '#000021',

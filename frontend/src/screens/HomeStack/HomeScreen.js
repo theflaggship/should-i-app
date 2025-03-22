@@ -328,8 +328,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   logo: {
-    width: 150,
-    height: 55,
+    width: 145,
+    height: 40,
     resizeMode: 'contain',
     marginTop: 30,
   },

@@ -457,37 +457,31 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       {/* Profile Header */}
       <View style={styles.profileHeader}>
-        <View style={styles.picContainer}>
+        <View style={styles.userRow}>
           <Image
-            source={{
-              uri: loggedInUser.profilePicture || 'https://picsum.photos/200/200',
-            }}
+            source={{ uri: loggedInUser.profilePicture || 'https://picsum.photos/200/200' }}
             style={styles.profileImage}
           />
+          <View style={styles.userTextBlock}>
+            {loggedInUser.displayName ? (
+              <>
+                <Text style={styles.displayName}>{loggedInUser.displayName}</Text>
+                <Text style={styles.usernameSubtitle}>@{loggedInUser.username || 'Unknown'}</Text>
+              </>
+            ) : (
+              <Text style={styles.usernameTitle}>@{loggedInUser.username || 'Unknown'}</Text>
+            )}
+          </View>
           <TouchableOpacity style={styles.optionsButton} onPress={handleOpenOptions}>
             <MoreHorizontal width={24} height={24} color={colors.light} />
           </TouchableOpacity>
         </View>
 
-        {/* Display Name vs Username */}
-        {loggedInUser.displayName ? (
-          <>
-            <Text style={styles.displayName}>{loggedInUser.displayName}</Text>
-            <Text style={styles.usernameSubtitle}>
-              @{loggedInUser.username || 'Unknown'}
-            </Text>
-          </>
-        ) : (
-          <Text style={styles.usernameTitle}>
-            @{loggedInUser.username || 'Unknown'}
-          </Text>
-        )}
-
         {/* Personal summary */}
         <Text style={styles.summaryText}>
           {loggedInUser.personalSummary || 'No personal summary yet.'}
         </Text>
-
+        
         {/* Stats Row */}
         <View style={styles.statsRow}>
           {/* Followers */}
@@ -611,15 +605,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10
+  },
   profileHeader: {
     backgroundColor: colors.dark,
     paddingTop: 60,
     paddingBottom: 10,
     paddingHorizontal: 16,
-  },
-  picContainer: {
-    position: 'relative',
-    marginBottom: 10,
   },
   profileImage: {
     width: 80,
@@ -627,6 +622,10 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 1,
     borderColor: '#ccc',
+  },
+  userTextBlock: {
+    flexShrink: 1,
+    paddingLeft: 14,
   },
   optionsButton: {
     position: 'absolute',
@@ -650,7 +649,7 @@ const styles = StyleSheet.create({
   },
   usernameSubtitle: {
     fontSize: 16,
-    color: colors.light,
+    color: colors.secondaryLight,
     marginBottom: 4,
   },
   summaryText: {
@@ -658,6 +657,7 @@ const styles = StyleSheet.create({
     color: colors.light,
     marginBottom: 12,
     marginTop: 2,
+    paddingLeft: 8,
   },
   statsRow: {
     flexDirection: 'row',
@@ -671,11 +671,11 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light,
+    color: colors.secondaryLight,
   },
   statLabel: {
     fontSize: 12,
-    color: '#ccc',
+    color: colors.secondaryLight,
   },
   tabsRow: {
     flexDirection: 'row',

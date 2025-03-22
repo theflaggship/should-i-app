@@ -1,4 +1,5 @@
 // src/screens/Auth/SignupScreen.js
+
 import React, { useState } from 'react';
 import {
   View,
@@ -6,33 +7,38 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { signup as signupApi } from '../../services/authService';
 import colors from '../../styles/colors';
 
 const SignupScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
-  const [email, setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState(null);
+  const [error, setError] = useState(null);
 
   const handleSignup = async () => {
     try {
       await signupApi(email, username, password);
       navigation.navigate('Login');
-    } catch (err) {
+    } catch {
       setError('Signup failed. Please try again.');
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Create an account</Text>
+      <View style={styles.logoContainer}>
+        <Image style={styles.logo} source={require('../../../graphics/whicha_and_logo_primary.png')} />
+        <Text style={styles.tagline}>Ask it. Don’t overthink it.</Text>
+      </View>
 
+      <Text style={styles.header}>Create An Account.</Text>
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.inputContainer}>
-      <TextInput
+        <TextInput
           style={styles.input}
           placeholder="Email"
           placeholderTextColor={colors.onDarkPlaceHolder}
@@ -65,8 +71,7 @@ const SignupScreen = ({ navigation }) => {
 
       <TouchableOpacity onPress={() => navigation.navigate('Login')}>
         <Text style={styles.switchText}>
-          Already have an account?{' '}
-          <Text style={styles.switchLink}>Log in</Text>
+          Already have an account? <Text style={styles.switchLink}>Log in</Text>
         </Text>
       </TouchableOpacity>
     </View>
@@ -79,11 +84,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.appBackground,
-    justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',      // <-- center children vertically
     paddingHorizontal: 30,
   },
-  header: {
+  logoContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 50,      // pushes everything below further down
+  },
+  logo: {
+    width: 250,
+    height: 120,           // bump height a bit
+    resizeMode: 'contain',
+  },
+  tagline: {
+    position: 'absolute',
+    top: 100,              // move it 100px below the top of the container (adjust as needed)
     fontSize: 20,
+    fontWeight: '500',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  header: {
+    fontSize: 18,
     fontWeight: '600',
     color: colors.dark,
     marginBottom: 20,
@@ -95,20 +120,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   inputContainer: {
+    width: '100%',
   },
   input: {
     borderRadius: 25,
     backgroundColor: '#fff',
     marginBottom: 15,
     paddingVertical: 15,
-    paddingHorizontal: 10,
-    paddingLeft: 20,
+    paddingHorizontal: 20,
     color: colors.dark,
   },
   signupButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.secondary,
     paddingVertical: 12,
     borderRadius: 20,
+    width: '100%',
     marginBottom: 20,
   },
   signupButtonText: {
@@ -122,10 +148,8 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 14,
   },
-  // Link color is now secondary instead of primary
   switchLink: {
-    color: colors.secondary,
+    color: colors.primary,
     fontWeight: '500',
-    textDecorationLine: 'none',
   },
 });

@@ -1,5 +1,5 @@
 // src/screens/OtherUserProfileScreen.js
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -396,51 +396,22 @@ export default function OtherUserProfileScreen() {
 
       {/* The top header with user pic + follow button */}
       <View style={styles.profileHeader}>
-        <View style={styles.picContainer}>
+        <View style={styles.userRow}>
           <Image
-            source={{
-              uri: profileOwner.profilePicture || 'https://picsum.photos/200/200',
-            }}
+            source={{ uri: profileOwner.profilePicture || 'https://picsum.photos/200/200' }}
             style={styles.profileImage}
           />
-          {/* Follow/Unfollow button */}
-          <TouchableOpacity
-            style={[
-              styles.followButton,
-              isFollowing
-                ? {
-                    backgroundColor: colors.input,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }
-                : {
-                    backgroundColor: '#21D0B2',
-                    right: 20,
-                  },
-            ]}
-            onPress={handleFollowToggle}
-          >
-            <Text
-              style={[
-                styles.followButtonText,
-                isFollowing ? { color: colors.light } : { color: colors.dark },
-              ]}
-            >
+          <View style={styles.userTextBlock}>
+            <Text style={styles.displayName}>{profileOwner.displayName || `@${profileOwner.username}`}</Text>
+            {profileOwner.displayName && <Text style={styles.usernameSubtitle}>@{profileOwner.username}</Text>}
+          </View>
+          <TouchableOpacity style={[styles.followButton, isFollowing ? { backgroundColor: colors.input } : { backgroundColor: colors.secondary }]} onPress={handleFollowToggle}>
+            <Text style={[styles.followButtonText, isFollowing ? { color: colors.light } : {}]}>
               {isFollowing ? 'Following' : 'Follow'}
             </Text>
-            {isFollowing && (
-              <Check
-                width={16}
-                height={16}
-                color={colors.secondary}
-                style={{ marginLeft: 6 }}
-              />
-            )}
+            {isFollowing && <Check width={16} height={16} color={colors.secondary} style={{ marginLeft: 6 }} />}
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.username}>@{profileOwner.username || 'Unknown'}</Text>
 
         {showSummary && (
           <Text style={styles.summaryText}>{profileOwner.personalSummary}</Text>
@@ -448,14 +419,33 @@ export default function OtherUserProfileScreen() {
 
         {/* Stats from useUserStatsStore */}
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() =>
+              navigation.navigate('FollowersFollowingScreen', {
+                userId: profileOwner.id,
+                mode: 'followers',
+              })
+            }
+          >
             <Text style={styles.statNumber}>{followers}</Text>
             <Text style={styles.statLabel}>Followers</Text>
-          </View>
-          <View style={styles.statItem}>
+          </TouchableOpacity>
+
+          {/* Following */}
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() =>
+              navigation.navigate('FollowersFollowingScreen', {
+                userId: profileOwner.id,
+                mode: 'following',
+              })
+            }
+          >
             <Text style={styles.statNumber}>{following}</Text>
             <Text style={styles.statLabel}>Following</Text>
-          </View>
+          </TouchableOpacity>
+
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{totalPolls}</Text>
             <Text style={styles.statLabel}>Polls</Text>
@@ -535,20 +525,17 @@ const styles = StyleSheet.create({
     left: 16,
     zIndex: 9999,
   },
-  backButtonText: {
-    color: colors.light,
-    fontSize: 16,
-    fontWeight: '400',
-  },
   profileHeader: {
     backgroundColor: colors.dark,
     paddingTop: 80,
-    paddingBottom: 10,
+    paddingBottom: 12,
     paddingHorizontal: 16,
   },
-  picContainer: {
-    position: 'relative',
-    marginBottom: 10,
+  userRow: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginTop: 12,
   },
   profileImage: {
     width: 80,
@@ -557,10 +544,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
   },
+  userTextBlock: {
+    flex: 1, 
+    paddingLeft: 14
+  },
+  displayName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.light
+  },
+  usernameSubtitle: {
+    fontSize: 14,
+    color: colors.secondaryLight
+  },
   followButton: {
+    display: 'flex',
+    flexDirection: 'row',
     position: 'absolute',
-    right: 0,
-    bottom: 0,
+    top: -42,            // lifts button above profile image
+    right: -5,  
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingVertical: 6,
@@ -583,6 +585,7 @@ const styles = StyleSheet.create({
     color: colors.light,
     marginBottom: 12,
     marginTop: 2,
+    paddingLeft: 8,
   },
   statsRow: {
     flexDirection: 'row',
@@ -596,11 +599,11 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.light,
+    color: colors.secondaryLight,
   },
   statLabel: {
     fontSize: 12,
-    color: '#ccc',
+    color: colors.secondaryLight,
   },
   tabsRow: {
     flexDirection: 'row',

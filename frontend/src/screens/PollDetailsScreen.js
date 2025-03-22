@@ -10,7 +10,7 @@ import {
   FlatList
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
 import { deletePoll, updatePoll, sendCommentWS } from '../services/pollService';
@@ -24,6 +24,7 @@ const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
 const PollDetailsScreen = ({ route }) => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user, token } = useContext(AuthContext);
 
   // Destructure pollId and optional highlightCommentId from route params
@@ -258,10 +259,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   headerTitle: {
+    fontFamily: 'Quicksand-SemiBold',
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 16,
   },
 
   pollCardContainer: {
@@ -281,7 +282,8 @@ const styles = StyleSheet.create({
 
   commentsList: {
     flex: 1,
-    marginTop: 8,
+    marginTop: -8,
+    marginBottom: 32,
   },
   commentItem: {
     flexDirection: 'row',
@@ -325,11 +327,17 @@ const styles = StyleSheet.create({
     color: colors.dark,
   },
   commentInputContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,                 // flush to bottom
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 10,
-    marginTop: 6,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    backgroundColor: colors.appBackground,
   },
   commentInput: {
     flex: 1,
@@ -340,6 +348,7 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingVertical: 10,
     marginRight: 8,
+    backgroundColor: '#fff',
   },
   commentButton: {
     backgroundColor: '#21D0B2',

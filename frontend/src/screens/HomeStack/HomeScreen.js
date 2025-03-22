@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 30,
     resizeMode: 'contain',
-    marginTop: 30,
+    marginTop: 40,
   },
   tabsRow: {
     flexDirection: 'row',

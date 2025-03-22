@@ -149,23 +149,37 @@ const MainTabNavigator = () => {
           tabBarInactiveTintColor: colors.dark,
           tabBarStyle: { backgroundColor: colors.background },
           tabBarShowLabel: false,
-          tabBarIcon: ({ color, size }) => {
+          tabBarIcon: ({ focused, color, size }) => {
             if (route.name === 'Home') {
               return (
                 <Image
                   source={Logo}
+                  style={{ width: 36, height: 36, tintColor: color, resizeMode: 'contain' }}
+                />
+              );
+            }
+            if (route.name === 'Create') {
+              return <PlusCircle
+                color={color}
+                width={28}    
+                height={28}
+                marginTop={5} 
+              />;
+            }
+            if (route.name === 'Profile') {
+              return (
+                <Image
+                  source={{ uri: user?.profilePicture || DEFAULT_PROFILE_IMG }}
                   style={{
-                    width: 34,
-                    height: 34,
-                    tintColor: color,
-                    resizeMode: 'contain',
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    borderWidth: focused ? 1.5 : 1,
+                    borderColor: focused ? colors.primary : colors.dark,
+                    marginTop: 5,
                   }}
                 />
               );
-            } else if (route.name === 'Create') {
-              return <PlusCircle color={color} size={size} />;
-            } else if (route.name === 'Profile') {
-              return <User color={color} size={size} />;
             }
           },
         })}
@@ -237,6 +251,7 @@ const MainTabNavigator = () => {
                 numberOfLines={3}
                 value={question}
                 onChangeText={setQuestion}
+                autoFocus
               />
             </View>
 
@@ -327,7 +342,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Quicksand-Bold',
     color: colors.dark,
     fontSize: 16,
-    fontWeight: '500',
   },
   formContainer: {
     paddingHorizontal: 16,

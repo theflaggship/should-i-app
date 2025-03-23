@@ -185,19 +185,34 @@ const PollDetailsScreen = ({ route }) => {
         }
         renderItem={({ item: comment }) => {
           if (!comment) return null;
-          // Check if this comment is highlighted
           const isHighlighted = highlightCommentId && comment.id === highlightCommentId;
           const commenter = comment.user || {};
           const name = commenter.displayName || commenter.username || 'Unknown';
           const userPic = commenter.profilePicture || DEFAULT_PROFILE_IMG;
-
+        
+          const handleNavigateToUser = () => {
+            if (commenter.id) {
+              navigation.navigate('OtherUserProfile', { userId: commenter.id });
+            }
+          };
+        
           return (
             <View style={styles.commentItem}>
-              <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
+              <TouchableOpacity onPress={handleNavigateToUser}>
+                <Image
+                  source={{ uri: userPic }}
+                  style={styles.commentProfileImage}
+                />
+              </TouchableOpacity>
+        
               <View style={[styles.commentContent, isHighlighted && styles.highlightedComment]}>
                 <View style={styles.commentHeader}>
-                  <Text style={styles.commentUsername}>{name}</Text>
-                  <Text style={styles.commentTimestamp}>{getTimeElapsed(comment.createdAt)}</Text>
+                  <TouchableOpacity onPress={handleNavigateToUser}>
+                    <Text style={styles.commentUsername}>{name}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.commentTimestamp}>
+                    {getTimeElapsed(comment.createdAt)}
+                  </Text>
                 </View>
                 <Text style={styles.commentText}>{comment.text}</Text>
               </View>

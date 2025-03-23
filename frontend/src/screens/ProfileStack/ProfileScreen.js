@@ -421,9 +421,11 @@ export default function ProfileScreen() {
         <FlatList
           data={userComments}
           keyExtractor={(item) => item.pollId.toString()}
-          renderItem={({ item }) => (
-            <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
-          )}
+          renderItem={({ item }) =>
+            item.poll ? (
+              <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
+            ) : null
+          }
           contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
             <RefreshControl
@@ -481,7 +483,7 @@ export default function ProfileScreen() {
         <Text style={styles.summaryText}>
           {loggedInUser.personalSummary || 'No personal summary yet.'}
         </Text>
-        
+
         {/* Stats Row */}
         <View style={styles.statsRow}>
           {/* Followers */}
@@ -636,7 +638,7 @@ const styles = StyleSheet.create({
     borderColor: colors.light,
     borderRadius: 20,
     paddingHorizontal: 8,
-    paddingVertical:2,
+    paddingVertical: 2,
   },
   displayName: {
     fontFamily: 'Quicksand-SemiBold',

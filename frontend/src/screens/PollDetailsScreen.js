@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   },
   commentOptionsIcon: {
     position: 'absolute',
-    bottom: 8,
+    bottom: 2,
     right: 8,
   },
   editedLabel: {

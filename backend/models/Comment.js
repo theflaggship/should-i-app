@@ -1,6 +1,4 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
-
+// models/comment.js
 module.exports = (sequelize, DataTypes) => {
   const Comment = sequelize.define('Comment', {
     pollId: {
@@ -15,7 +13,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    edited: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
   }, {});
 
-  return Comment
-}
+  return Comment;
+};

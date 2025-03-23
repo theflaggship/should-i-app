@@ -4,14 +4,10 @@ const WebSocket = require('ws');
 
 const setupCommentSocket = (wss) => {
   wss.on('connection', (ws, request) => {
-    // If NOT "/comments", skip comment logic
-    if (request.url !== '/comments') {
-      return;
-    }
+    if (request.url !== '/comments') return;
 
     console.log('Client connected to Comment WebSocket');
 
-    // Handle socket-level errors
     ws.on('error', (err) => {
       console.error('Comment WebSocket error on a client:', err);
       ws.close();
@@ -25,32 +21,42 @@ const setupCommentSocket = (wss) => {
           return;
         }
 
-        // Create the comment
-        const newComment = await Comment.create({ userId, pollId, commentText });
+        // 1. Create the new comment
+        const comment = await Comment.create({ userId, pollId, commentText, edited: false });
 
-        // Include user details
-        const commentWithUser = await Comment.findByPk(newComment.id, {
-          include: [{ model: User, attributes: ['id', 'username', 'profilePicture', 'displayName'], }],
+
+        // 2. Re-fetch with full user details using correct alias
+        const commentWithUser = await Comment.findByPk(comment.id, {
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'username', 'displayName', 'profilePicture'],
+            },
+          ],
         });
 
-        // Prepare broadcast data
-        const updatedCommentData = JSON.stringify({
+        // 3. Format it exactly how the frontend expects
+        const formattedComment = {
+          id: commentWithUser.id,
+          text: commentWithUser.commentText,
+          createdAt: commentWithUser.createdAt,
+          user: commentWithUser.user,
+          edited: commentWithUser.edited || false,
+        };
+
+        // 4. Broadcast to all connected clients
+        const messageToSend = JSON.stringify({
           pollId,
-          comment: {
-            id: commentWithUser.id,
-            text: commentWithUser.commentText,
-            createdAt: commentWithUser.createdAt,
-            User: commentWithUser.User,
-          },
+          comment: formattedComment,
         });
 
-        // Broadcast
         wss.clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
             try {
-              client.send(updatedCommentData);
+              client.send(messageToSend);
             } catch (sendErr) {
-              console.error('Error sending to a comment client:', sendErr);
+              console.error('Error sending to comment client:', sendErr);
               client.close();
             }
           }

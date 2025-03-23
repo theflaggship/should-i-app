@@ -120,25 +120,27 @@ const PollDetailsScreen = ({ route }) => {
 
   // Edit a comment
   const handleEditComment = async (newText) => {
-    if (!newText.trim() || !editingCommentId) return;
+    if (
+      !newText.trim() ||
+      !editingCommentId ||
+      String(editingCommentId).startsWith('temp-')
+    ) {
+      return;
+    }
+  
     commentOptionsRef.current.close();
   
     try {
       const updated = await updateComment(editingCommentId, newText.trim(), token);
-      usePollsStore.getState().updateCommentState(poll.id, {
-        id: updated.id,
-        text: updated.commentText,
-        createdAt: updated.createdAt,
-        user: updated.user,
-        edited: true,
-      });
+      usePollsStore.getState().updateCommentState(poll.id, updated); // updated includes `user`
     } catch (err) {
       console.error('Edit failed:', err.response?.data || err.message);
       Alert.alert('Error', 'Could not save changes.');
     } finally {
       setEditingCommentId(null);
     }
-  };  
+  };
+  
 
   // Scroll & highlight a specific comment if highlightCommentId is provided
   useEffect(() => {

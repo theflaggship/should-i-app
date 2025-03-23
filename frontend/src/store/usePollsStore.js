@@ -677,42 +677,50 @@ export const usePollsStore = create((set, get) => ({
    */
   updateCommentState: (pollId, newComment) => {
     set((state) => {
-      if (!pollId || !newComment) {
-        return {
-          polls: state.polls,
-          userPolls: state.userPolls,
-          votedPolls: state.votedPolls,
-          followingPolls: state.followingPolls,
-        };
-      }
+      if (!pollId || !newComment) return state;
   
-      const newPolls = state.polls.map((p) => {
+      const updatedPolls = state.polls.map((p) => {
         if (p.id !== pollId) return p;
   
         const comments = Array.isArray(p.comments) ? [...p.comments] : [];
-        const idx = comments.findIndex((c) => String(c.id) === String(newComment.id));
+  
+        // Check if we already have this comment — by ID or as a temp match
+        const idx = comments.findIndex((c) =>
+          String(c.id) === String(newComment.id) ||
+          (c.text === newComment.text && c.user?.id === newComment.user?.id && String(c.id).startsWith('temp'))
+        );
   
         if (idx > -1) {
-          // Replace existing comment
-          comments[idx] = { ...comments[idx], ...newComment, edited: true };
+          // Existing comment: merge updates
+          comments[idx] = {
+            ...comments[idx],
+            ...newComment,
+            edited: newComment.edited ?? comments[idx].edited ?? false, // preserve true if set
+          };
         } else {
-          // Add new comment
-          comments.push(newComment);
+          // New comment: push it in
+          comments.push({
+            ...newComment,
+            edited: newComment.edited ?? false,
+          });
         }
   
+        // Sort by timestamp
         comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  
         return { ...p, comments, commentCount: comments.length };
       });
   
       return {
-        polls: newPolls,
+        polls: updatedPolls,
         userPolls: state.userPolls,
         votedPolls: state.votedPolls,
         followingPolls: state.followingPolls,
       };
     });
   },
-
+  
+  
   removeComment: (pollId, commentId) => {
     set(state => ({
       polls: state.polls.map(p => {
@@ -725,7 +733,7 @@ export const usePollsStore = create((set, get) => ({
       followingPolls: state.followingPolls,
     }));
   },
-  
+
   /**
    * addPollToStore: add a newly created poll to the main feed & user feed
    */

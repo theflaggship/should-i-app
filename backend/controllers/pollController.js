@@ -69,7 +69,7 @@ exports.getAllPolls = async (req, res, next) => {
         {
           model: Comment,
           as: 'comments',
-          attributes: ['id', 'commentText', 'createdAt'],
+          attributes: ['id', 'commentText', 'createdAt', 'userId', 'edited'],
           include: [
             {
               model: User,
@@ -122,6 +122,7 @@ exports.getAllPolls = async (req, res, next) => {
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
+          edited: c.edited,
           user: c.user
             ? {
                 id: c.user.id,
@@ -193,7 +194,7 @@ exports.getFollowingPolls = async (req, res, next) => {
         {
           model: Comment,
           as: 'comments',
-          attributes: ['id', 'commentText', 'createdAt'],
+          attributes: ['id', 'commentText', 'createdAt', 'userId', 'edited'],
           include: [
             {
               model: User,
@@ -244,6 +245,7 @@ exports.getFollowingPolls = async (req, res, next) => {
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
+          edited: c.edited,
           user: c.user
             ? {
                 id: c.user.id,
@@ -288,7 +290,7 @@ exports.getPollById = async (req, res, next) => {
         {
           model: Comment,
           as: 'comments',
-          attributes: ['id', 'commentText', 'createdAt', 'userId'],
+          attributes: ['id', 'commentText', 'createdAt', 'userId', 'edited'],
           include: [
             {
               model: User,
@@ -339,6 +341,7 @@ exports.getPollById = async (req, res, next) => {
         id: c.id,
         text: c.commentText,
         createdAt: c.createdAt,
+        edited: c.edited,
         user: c.user
           ? {
               id: c.user.id,

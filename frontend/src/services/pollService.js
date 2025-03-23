@@ -113,6 +113,23 @@ export const getCommentsForPoll = async (pollId) => {
   return response.data;
 };
 
+// Update a comment
+export const updateComment = async (commentId, text, token) => {
+  const { data } = await api.put(
+    `/comments/${commentId}`,
+    { commentText: text },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return data.comment;
+};
+
+// Delete a comment
+export const deleteComment = async (commentId, token) => {
+  await api.delete(`/comments/${commentId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
 // ---------------------
 // Vote WebSocket Logic
 // ---------------------

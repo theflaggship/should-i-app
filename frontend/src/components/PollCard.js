@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   usernameSubtitle: {
-    fontFamily: 'Quicksand-Regular',
+    fontFamily: 'Quicksand-Medium',
     fontSize: 14,
     color: colors.primary,
     lineHeight: 18,

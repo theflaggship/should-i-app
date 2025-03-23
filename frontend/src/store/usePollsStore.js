@@ -685,33 +685,25 @@ export const usePollsStore = create((set, get) => ({
           followingPolls: state.followingPolls,
         };
       }
-
+  
       const newPolls = state.polls.map((p) => {
         if (p.id !== pollId) return p;
-
-        const oldComments = Array.isArray(p.comments) ? p.comments : [];
-        const updatedComments = [...oldComments];
-
-        // Possibly replace a "temp" comment
-        const newTextTrimmed = (newComment.text || '').trim();
-        const existingIndex = updatedComments.findIndex((c) => {
-          const cTextTrimmed = (c.text || '').trim();
-          const isTemp = typeof c.id === 'string' && c.id.startsWith('temp-');
-          const sameUser = c.User?.id === newComment.User?.id;
-          const sameText = cTextTrimmed === newTextTrimmed;
-          return isTemp && sameUser && sameText;
-        });
-
-        if (existingIndex > -1) {
-          updatedComments[existingIndex] = newComment;
+  
+        const comments = Array.isArray(p.comments) ? [...p.comments] : [];
+        const idx = comments.findIndex((c) => String(c.id) === String(newComment.id));
+  
+        if (idx > -1) {
+          // Replace existing comment
+          comments[idx] = { ...comments[idx], ...newComment, edited: true };
         } else {
-          updatedComments.push(newComment);
+          // Add new comment
+          comments.push(newComment);
         }
-
-        updatedComments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        return { ...p, comments: updatedComments, commentCount: updatedComments.length };
+  
+        comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        return { ...p, comments, commentCount: comments.length };
       });
-
+  
       return {
         polls: newPolls,
         userPolls: state.userPolls,
@@ -721,6 +713,19 @@ export const usePollsStore = create((set, get) => ({
     });
   },
 
+  removeComment: (pollId, commentId) => {
+    set(state => ({
+      polls: state.polls.map(p => {
+        if (p.id !== pollId) return p;
+        const comments = p.comments.filter(c => String(c.id) !== String(commentId));
+        return { ...p, comments, commentCount: comments.length };
+      }),
+      userPolls: state.userPolls,
+      votedPolls: state.votedPolls,
+      followingPolls: state.followingPolls,
+    }));
+  },
+  
   /**
    * addPollToStore: add a newly created poll to the main feed & user feed
    */

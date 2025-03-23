@@ -16,15 +16,21 @@ exports.createComment = async (req, res, next) => {
 exports.updateComment = async (req, res, next) => {
   try {
     const comment = await Comment.findByPk(req.params.id);
-    if (!comment) {
-      return res.status(404).json({ error: 'Comment not found' });
-    }
-    await comment.update(req.body);
-    res.status(200).json({ message: 'Comment updated', comment });
-  } catch (error) {
-    next(error);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    if (comment.userId !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
+
+    await comment.update({ commentText: req.body.commentText });
+
+    const updated = await Comment.findByPk(comment.id, {
+      include: [{ model: User, as: 'user', attributes: ['id','username','displayName','profilePicture'] }],
+    });
+
+    return res.status(200).json({ comment: updated });
+  } catch (err) {
+    next(err);
   }
 };
+
 
 // DELETE /api/comments/:id
 exports.deleteComment = async (req, res, next) => {

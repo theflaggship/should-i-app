@@ -1,5 +1,6 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import {
+  Alert,
   View,
   Text,
   ActivityIndicator,
@@ -13,19 +14,21 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
-import { deletePoll, updatePoll, sendCommentWS } from '../services/pollService';
+import { deletePoll, updatePoll, sendCommentWS, updateComment, deleteComment } from '../services/pollService';
 import PollCard from '../components/PollCard';
 import PollModalsManager from '../components/PollModalsManager';
+import CommentOptionsModal from '../components/CommentOptionsModal';
+import CommentModal from '../components/CommentModal';
 import { getTimeElapsed } from '../../utils/timeConversions';
 import colors from '../styles/colors';
-import { ArrowLeftCircle } from 'react-native-feather';
+import { ArrowLeftCircle, MoreHorizontal } from 'react-native-feather';
 
 const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 
 const PollDetailsScreen = ({ route }) => {
+  const { user, token } = useContext(AuthContext);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, token } = useContext(AuthContext);
 
   // Destructure pollId and optional highlightCommentId from route params
   const { pollId, highlightCommentId } = route.params || {};
@@ -37,11 +40,16 @@ const PollDetailsScreen = ({ route }) => {
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
-  // Local comment input
-  const [commentText, setCommentText] = useState('');
+  const [selectedComment, setSelectedComment] = useState(null);
+  const commentOptionsRef = useRef();
+  const [editingCommentId, setEditingCommentId] = useState(null);
 
   // For scrolling to a specific comment
   const flatListRef = useRef(null);
+
+  // For CommentModal
+  const addCommentRef = useRef();
+  const editCommentRef = useRef();
 
   // For the PollModalsManager
   const pollModalsRef = useRef(null);
@@ -85,15 +93,12 @@ const PollDetailsScreen = ({ route }) => {
     }
   };
 
-  // Submit a new comment
-  const submitComment = () => {
-    if (!commentText.trim() || !poll) return;
-    const trimmedText = commentText.trim();
-
-    // 1) Create a local "temp" comment
-    const tempComment = {
+  // Add a new comment
+  const handleAddComment = (text) => {
+    if (!text?.trim() || !poll) return;
+    const newComment = {
       id: 'temp-' + Date.now(),
-      text: trimmedText,
+      text: text.trim(),
       createdAt: new Date().toISOString(),
       user: {
         id: user.id,
@@ -103,22 +108,37 @@ const PollDetailsScreen = ({ route }) => {
       },
     };
 
-    // 2) Update the store (optimistic)
-    usePollsStore.getState().updateCommentState(poll.id, tempComment);
+    // Optimistically update store
+    usePollsStore.getState().updateCommentState(poll.id, newComment);
 
-    // 3) Send the actual comment via WebSocket
-    sendCommentWS(user.id, poll.id, trimmedText);
+    // Send over WS
+    sendCommentWS(user.id, poll.id, text.trim());
 
-    // 4) Clear the input
-    setCommentText('');
-
-    // 5) Scroll to the bottom so the new comment is visible
-    setTimeout(() => {
-      if (flatListRef.current && poll.comments?.length > 0) {
-        flatListRef.current.scrollToEnd({ animated: true });
-      }
-    }, 100);
+    // Scroll into view
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
+
+  // Edit a comment
+  const handleEditComment = async (newText) => {
+    if (!newText.trim() || !editingCommentId) return;
+    commentOptionsRef.current.close();
+  
+    try {
+      const updated = await updateComment(editingCommentId, newText.trim(), token);
+      usePollsStore.getState().updateCommentState(poll.id, {
+        id: updated.id,
+        text: updated.commentText,
+        createdAt: updated.createdAt,
+        user: updated.user,
+        edited: true,
+      });
+    } catch (err) {
+      console.error('Edit failed:', err.response?.data || err.message);
+      Alert.alert('Error', 'Could not save changes.');
+    } finally {
+      setEditingCommentId(null);
+    }
+  };  
 
   // Scroll & highlight a specific comment if highlightCommentId is provided
   useEffect(() => {
@@ -180,41 +200,40 @@ const PollDetailsScreen = ({ route }) => {
         ref={flatListRef}
         style={styles.commentsList}
         data={poll.comments || []}
-        keyExtractor={(item, index) =>
-          item?.id ? item.id.toString() : index.toString()
-        }
+        keyExtractor={(comment) => comment.id.toString()}
         renderItem={({ item: comment }) => {
           if (!comment) return null;
-          const isHighlighted = highlightCommentId && comment.id === highlightCommentId;
-          const commenter = comment.user || {};
-          const name = commenter.displayName || commenter.username || 'Unknown';
+          const commenter = comment.user ?? {};
+          const name = commenter.displayName ?? commenter.username ?? 'Unknown';
           const userPic = commenter.profilePicture || DEFAULT_PROFILE_IMG;
-        
-          const handleNavigateToUser = () => {
-            if (commenter.id) {
-              navigation.navigate('OtherUserProfile', { userId: commenter.id });
-            }
-          };
+          const isOwner = commenter.id === user.id;
+          const isHighlighted = highlightCommentId === comment.id;
         
           return (
             <View style={styles.commentItem}>
-              <TouchableOpacity onPress={handleNavigateToUser}>
-                <Image
-                  source={{ uri: userPic }}
-                  style={styles.commentProfileImage}
-                />
+              <TouchableOpacity onPress={() => commenter.id && navigation.navigate('OtherUserProfile', { userId: commenter.id })}>
+                <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
               </TouchableOpacity>
         
               <View style={[styles.commentContent, isHighlighted && styles.highlightedComment]}>
                 <View style={styles.commentHeader}>
-                  <TouchableOpacity onPress={handleNavigateToUser}>
+                  <TouchableOpacity onPress={() => commenter.id && navigation.navigate('OtherUserProfile', { userId: commenter.id })}>
                     <Text style={styles.commentUsername}>{name}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.commentTimestamp}>
-                    {getTimeElapsed(comment.createdAt)}
-                  </Text>
+                  <Text style={styles.commentTimestamp}>{getTimeElapsed(comment.createdAt)}</Text>
                 </View>
+        
                 <Text style={styles.commentText}>{comment.text}</Text>
+                {comment.edited && <Text style={styles.editedLabel}>Edited</Text>}
+        
+                {isOwner && (
+                  <TouchableOpacity style={styles.commentOptionsIcon} onPress={() => {
+                    setSelectedComment(comment);
+                    commentOptionsRef.current.open();
+                  }}>
+                    <MoreHorizontal width={20} color={colors.dark} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           );
@@ -223,22 +242,41 @@ const PollDetailsScreen = ({ route }) => {
 
       {/* Comment Input if allowComments */}
       {poll.allowComments && (
-        <View style={styles.commentInputContainer}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Add a comment..."
-            value={commentText}
-            onChangeText={setCommentText}
-          />
-          <TouchableOpacity
-            style={styles.commentButton}
-            onPress={submitComment}
-            disabled={!commentText.trim()}
-          >
-            <Text style={styles.commentButtonText}>Add</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.commentInputContainer} onPress={() => addCommentRef.current.open()}>
+          <View style={styles.commentInputContainer}>
+            <View style={styles.commentInput}>
+              <Text style={styles.commentInputText}>Add a comment...</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       )}
+
+      <CommentOptionsModal
+        ref={commentOptionsRef}
+        onEdit={() => {
+          commentOptionsRef.current.close();
+          setEditingCommentId(selectedComment.id);
+          setTimeout(() => {
+            editCommentRef.current.open(selectedComment.text);
+          }, 300); // 300ms gives Modalize time to close
+        }}
+        onDelete={() => {
+          Alert.alert(
+            'Delete Comment?',
+            'Are you sure?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                  commentOptionsRef.current.close();
+                  await deleteComment(selectedComment.id, token);
+                  usePollsStore.getState().removeComment(poll.id, selectedComment.id);
+                }
+              }
+            ]
+          );
+        }}
+      />
 
       {/* Poll Modals Manager */}
       <PollModalsManager
@@ -246,6 +284,10 @@ const PollDetailsScreen = ({ route }) => {
         onDeletePoll={handleDeletePoll}
         onSavePoll={handleSavePoll}
       />
+
+      {/* Comment Modal */}
+      <CommentModal ref={addCommentRef} onSubmit={handleAddComment} />
+      <CommentModal ref={editCommentRef} onSubmit={handleEditComment} actionLabel="Save" />
     </SafeAreaView>
   );
 };
@@ -341,6 +383,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.dark,
   },
+  commentOptionsIcon: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+  },
+  editedLabel: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: 'gray',
+    marginTop: 4,
+  },
   commentInputContainer: {
     position: 'absolute',
     left: 0,
@@ -365,11 +418,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: '#fff',
   },
-  commentButton: {
-    backgroundColor: '#21D0B2',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+  commentInputText: {
+    fontFamily: 'Quicksand-Regular',
   },
   commentButtonText: {
     color: '#fff',

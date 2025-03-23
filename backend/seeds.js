@@ -1,62 +1,26 @@
-const { sequelize, User, Poll, PollOption, Comment } = require('./models'); // Import from models/index.js
+// backend/seeds.js
+
+const { sequelize, User, Poll, PollOption, Comment, Follow } = require('./models');
 const bcrypt = require('bcryptjs');
 
-// A mapping of poll questions to relevant options
 const questionOptionsMap = [
-  {
-    question: 'What should I eat for dinner?',
-    options: ['Pizza', 'Burger', 'Salad', 'Pasta'],
-  },
-  {
-    question: 'Which movie should I watch?',
-    options: ['Inception', 'Interstellar', 'Matrix', 'Titanic'],
-  },
-  {
-    question: 'Which guitar should I buy?',
-    options: ['Epiphone DR-100', 'Yamaha FG800', 'Martin LX1E', 'Taylor 110e'],
-  },
-  {
-    question: 'Where should I travel next?',
-    options: ['Japan', 'Italy', 'Canada', 'Australia'],
-  },
-  {
-    question: 'What programming language should I learn?',
-    options: ['JavaScript', 'Python', 'Go', 'Rust'],
-  },
-  {
-    question: 'Should I adopt a pet?',
-    options: ['Yes, adopt a cat', 'Yes, adopt a dog', 'No, not now'],
-  },
-  {
-    question: 'Which coding bootcamp should I attend?',
-    options: ['Flatiron', 'AppAcademy', 'Hack Reactor', 'General Assembly'],
-  },
-  {
-    question: 'Which phone should I purchase?',
-    options: ['iPhone 14', 'Samsung S22', 'Google Pixel 7', 'OnePlus 10'],
-  },
-  {
-    question: 'How should I spend my weekend?',
-    options: ['Go hiking', 'Watch Netflix', 'Visit family', 'Attend a meetup'],
-  },
-  {
-    question: 'Which book should I read next?',
-    options: ['Sapiens', 'Dune', 'Atomic Habits', 'The Great Gatsby'],
-  },
+  { question: 'What should I eat for dinner?', options: ['Pizza','Burger','Salad','Pasta'] },
+  { question: 'Which movie should I watch?', options: ['Inception','Interstellar','Matrix','Titanic'] },
+  { question: 'Which guitar should I buy?', options: ['Epiphone DR-100','Yamaha FG800','Martin LX1E','Taylor 110e'] },
+  { question: 'Where should I travel next?', options: ['Japan','Italy','Canada','Australia'] },
+  { question: 'What programming language should I learn?', options: ['JavaScript','Python','Go','Rust'] },
+  { question: 'Should I adopt a pet?', options: ['Yes, adopt a cat','Yes, adopt a dog','No, not now'] },
+  { question: 'Which coding bootcamp should I attend?', options: ['Flatiron','AppAcademy','Hack Reactor','General Assembly'] },
+  { question: 'Which phone should I purchase?', options: ['iPhone 14','Samsung S22','Google Pixel 7','OnePlus 10'] },
+  { question: 'How should I spend my weekend?', options: ['Go hiking','Watch Netflix','Visit family','Attend a meetup'] },
+  { question: 'Which book should I read next?', options: ['Sapiens','Dune','Atomic Habits','The Great Gatsby'] },
 ];
 
-// Random comment texts
 const commentTexts = [
-  "I totally agree!",
-  "Not sure about that...",
-  "Great choice!",
-  "I voted differently, but I see your point.",
-  "This is a tough decision!",
-  "I love this topic!",
-  "Interesting take!",
-  "I was thinking the same thing.",
-  "That’s a hard one!",
-  "I’d love to hear more opinions on this!"
+  "I totally agree!", "Not sure about that...", "Great choice!",
+  "I voted differently, but I see your point.", "This is a tough decision!",
+  "I love this topic!", "Interesting take!", "I was thinking the same thing.",
+  "That’s a hard one!", "I’d love to hear more opinions on this!"
 ];
 
 async function seed() {
@@ -64,76 +28,97 @@ async function seed() {
     await sequelize.sync({ force: true });
     console.log('Database synced (force: true).');
 
-    // Create 5 users
+    // === Default profile pictures: replace these URLs with your actual hosted images ===
+    const defaultPics = [
+      'https://i.imgur.com/skNociU.png',
+      'https://i.imgur.com/kWDmtJk.png',
+      'https://i.imgur.com/vSh7C3e.png',
+      'https://i.imgur.com/UeATFBH.png',
+      'https://i.imgur.com/jGO1Hp2.png',
+      'https://i.imgur.com/EFfkzGt.png',
+      'https://i.imgur.com/yM0mKXq.png',
+    ];
+
+    const defaultSummaries = [
+      'I love coding.', 'Tech enthusiast.', 'Coffee addict.',
+      'Traveler at heart.', 'Full-stack developer.', 'Book lover.', 'Music junkie.'
+    ];
+
+    // Create 10 users
     const users = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 10; i++) {
       const hashedPassword = await bcrypt.hash('password', 10);
+      const displayName = Math.random() < 0.5 ? `User ${i}` : null;
+      const personalSummary = Math.random() < 0.5 
+        ? defaultSummaries[Math.floor(Math.random() * defaultSummaries.length)]
+        : null;
+      const profilePicture = defaultPics[Math.floor(Math.random() * defaultPics.length)];
+
       const user = await User.create({
         username: `User${i}`,
         email: `user${i}@example.com`,
         password: hashedPassword,
-        profilePicture: 'https://picsum.photos/200/200',
+        displayName,
+        personalSummary,
+        profilePicture,
       });
       users.push(user);
     }
-    console.log('Created 5 users with hashed passwords.');
+    console.log('Created 10 users.');
 
-    // Create polls
-    const polls = [];
-    for (let user of users) {
-      for (let p = 0; p < 3; p++) {
-        const randomIndex = Math.floor(Math.random() * questionOptionsMap.length);
-        const { question, options } = questionOptionsMap[randomIndex];
-
-        const allowComments = Math.random() < 0.7;
-        const newPoll = await Poll.create({
-          userId: user.id,
-          question,
-          isPrivate: false,
-          allowComments,
-        });
-        polls.push(newPoll);
-
-        // Shuffle + pick a subset of 2 to 4 options
-        const shuffledOpts = [...options].sort(() => 0.5 - Math.random());
-        const numberOfOptions = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
-        const chosenOpts = shuffledOpts.slice(0, numberOfOptions);
-
-        // Create PollOption records, preserving the final order with 'sortOrder'
-        chosenOpts.forEach((optText, idx) => {
-          PollOption.create({
-            pollId: newPoll.id,
-            optionText: optText,
-            votes: Math.floor(Math.random() * 10),
-            sortOrder: idx, // <--- Assign index as the order
-          });
-        });
+    // Create follow relationships
+    for (const follower of users) {
+      const followees = users.filter(u => u.id !== follower.id)
+                            .sort(() => Math.random() - 0.5)
+                            .slice(0, 2);
+      for (const followee of followees) {
+        await Follow.create({ followerId: follower.id, followingId: followee.id });
       }
     }
-    console.log('Polls and options created.');
+    console.log('Seeded follow relationships.');
 
-    // Add random comments
-    for (let poll of polls) {
-      if (poll.allowComments) {
-        const numComments = Math.floor(Math.random() * 5);
-        for (let i = 0; i < numComments; i++) {
-          const randomUser = users[Math.floor(Math.random() * users.length)];
-          const randomComment = commentTexts[Math.floor(Math.random() * commentTexts.length)];
+    // Create polls & options
+    const polls = [];
+    for (const user of users) {
+      for (let j = 0; j < 3; j++) {
+        const { question, options } = questionOptionsMap[Math.floor(Math.random() * questionOptionsMap.length)];
+        const allowComments = Math.random() < 0.7;
+        const poll = await Poll.create({ userId: user.id, question, isPrivate: false, allowComments });
+        polls.push(poll);
 
-          await Comment.create({
+        const chosen = options.sort(() => Math.random() - 0.5).slice(0, Math.floor(Math.random() * 3) + 2);
+        for (let idx = 0; idx < chosen.length; idx++) {
+          await PollOption.create({
             pollId: poll.id,
-            userId: randomUser.id,
-            commentText: randomComment,
+            optionText: chosen[idx],
+            votes: Math.floor(Math.random() * 10),
+            sortOrder: idx,
           });
         }
       }
     }
-    console.log('Random comments added to polls.');
+    console.log('Created polls & options.');
 
-    console.log('Seeding complete.');
+    // Seed comments
+    for (const poll of polls) {
+      if (poll.allowComments) {
+        const count = Math.floor(Math.random() * 5);
+        for (let k = 0; k < count; k++) {
+          const commenter = users[Math.floor(Math.random() * users.length)];
+          await Comment.create({
+            pollId: poll.id,
+            userId: commenter.id,
+            commentText: commentTexts[Math.floor(Math.random() * commentTexts.length)],
+          });
+        }
+      }
+    }
+    console.log('Seeded comments.');
+
+    console.log('✅ Seed complete.');
     process.exit(0);
   } catch (error) {
-    console.error('Error seeding database:', error);
+    console.error('❌ Error during seeding:', error);
     process.exit(1);
   }
 }

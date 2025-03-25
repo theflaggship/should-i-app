@@ -504,6 +504,7 @@ export const usePollsStore = create((set, get) => ({
           id: comment.id,
           text: comment.text,
           createdAt: comment.createdAt,
+          edited: comment.edited,
           user: comment.user,
         });
       });

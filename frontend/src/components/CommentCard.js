@@ -85,7 +85,10 @@ const CommentCard = ({ poll, userComments, onOpenMenu, user }) => {
             style={styles.commentItem}
             onPress={() => handleCommentPress(comment.id)}
           >
-            <Text style={styles.commentText}>{comment.text}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.commentText}>{comment.text}</Text>
+              {comment.edited && <Text style={styles.editedLabel}>Edited</Text>}
+            </View>
             <Text style={styles.commentTimestamp}>{getTimeElapsed(comment.createdAt)}</Text>
           </TouchableOpacity>
         ))}
@@ -124,7 +127,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 8, 
+    marginRight: 8,
     borderWidth: 0.5,
     borderColor: 'gray',
   },
@@ -144,6 +147,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Quicksand-SemiBold',
     fontSize: 16,
     color: colors.dark,
+  },
+  editedLabel: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: 'gray',
+    marginTop: 4,
   },
   timestamp: {
     marginLeft: 'auto',

@@ -133,7 +133,16 @@ const PollDetailsScreen = ({ route }) => {
   
     try {
       const updated = await updateComment(editingCommentId, newText.trim(), token);
-      usePollsStore.getState().updateCommentState(poll.id, updated); // updated includes `user`
+      usePollsStore.getState().updateCommentState(poll.id, updated); // update store
+  
+      // ⬇️ Update localPoll/pollData if it's being used
+      setPollData((prev) => {
+        if (!prev?.comments) return prev;
+        const updatedComments = prev.comments.map((c) =>
+          String(c.id) === String(updated.id) ? { ...c, ...updated } : c
+        );
+        return { ...prev, comments: updatedComments };
+      });
     } catch (err) {
       console.error('Edit failed:', err.response?.data || err.message);
       Alert.alert('Error', 'Could not save changes.');
@@ -141,6 +150,7 @@ const PollDetailsScreen = ({ route }) => {
       setEditingCommentId(null);
     }
   };
+  
   
 
   // Scroll & highlight a specific comment if highlightCommentId is provided

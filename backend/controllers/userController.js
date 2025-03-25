@@ -151,6 +151,7 @@ exports.getUserPolls = async (req, res, next) => {
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
+          edited: c.edited,
           user: c.user
             ? {
                 id: c.user.id,
@@ -212,6 +213,7 @@ exports.getUserComments = async (req, res, next) => {
         id: comment.id,
         text: comment.commentText,
         createdAt: comment.createdAt,
+        edited: comment.edited,
         poll: comment.poll
           ? {
               id: comment.poll.id,
@@ -291,7 +293,7 @@ exports.getUserVotes = async (req, res, next) => {
                   // Must match Poll.hasMany(Comment, { as: 'comments' })
                   model: Comment,
                   as: 'comments',
-                  attributes: ['id', 'commentText', 'createdAt'],
+                  attributes: ['id', 'commentText', 'createdAt', 'edited'],
                   include: [
                     {
                       model: User,
@@ -351,6 +353,7 @@ exports.getUserVotes = async (req, res, next) => {
           id: c.id,
           text: c.commentText,
           createdAt: c.createdAt,
+          edited: c.edited,
           user: c.user
             ? {
                 id: c.user.id,

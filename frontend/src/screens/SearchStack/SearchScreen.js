@@ -1,9 +1,9 @@
 // src/screens/SearchScreen.js
 import React, { useState } from 'react';
 import { View, TextInput, Button, FlatList, Text, StyleSheet } from 'react-native';
-import globalStyles from '../styles/globalStyles';
-import colors from '../styles/colors';
-import { getPolls } from '../services/pollService'; // Or a dedicated search service
+import globalStyles from '../../styles/globalStyles';
+import colors from '../../styles/colors';
+import { getPolls } from '../../services/pollService'; // Or a dedicated search service
 
 const SearchScreen = ({ navigation }) => {
   const [query, setQuery] = useState('');

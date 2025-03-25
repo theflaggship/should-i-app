@@ -152,11 +152,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    logout();
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  };
-
   // ─────────────────────────────────────────────────────────────────────────────
   // Pull-to-refresh
   // ─────────────────────────────────────────────────────────────────────────────
@@ -421,11 +416,9 @@ export default function ProfileScreen() {
         <FlatList
           data={userComments}
           keyExtractor={(item) => item.pollId.toString()}
-          renderItem={({ item }) =>
-            item.poll ? (
-              <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
-            ) : null
-          }
+          renderItem={({ item }) => (
+            <CommentCard poll={item.poll} userComments={item.userComments} user={loggedInUser} />
+          )}
           contentContainerStyle={{ paddingBottom: 16 }}
           refreshControl={
             <RefreshControl
@@ -471,7 +464,7 @@ export default function ProfileScreen() {
                 <Text style={styles.usernameSubtitle}>@{loggedInUser.username || 'Unknown'}</Text>
               </>
             ) : (
-              <Text style={styles.usernameTitle}>@{loggedInUser.username || 'Unknown'}</Text>
+              <Text style={styles.displayName}>@{loggedInUser.username || 'Unknown'}</Text>
             )}
           </View>
           <TouchableOpacity style={styles.optionsButton} onPress={handleOpenOptions}>

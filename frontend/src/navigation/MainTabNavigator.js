@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeStack from '../screens/HomeStack/HomeStack';
 import ProfileStack from '../screens/ProfileStack/ProfileStack';
-import { Home, PlusCircle, User, MinusCircle } from 'react-native-feather';
+import SearchStack from '../screens/SearchStack/SearchStack'
+import { PlusCircle, Search, MinusCircle } from 'react-native-feather';
 import colors from '../styles/colors';
 import Logo from '../../assets/logos/whicha_logo_dark.png'
 
@@ -158,6 +159,14 @@ const MainTabNavigator = () => {
                 />
               );
             }
+            if (route.name === 'Search') {
+              return <Search
+                color={color}
+                width={28}    
+                height={28}
+                marginTop={5} 
+              />;
+            }
             if (route.name === 'Create') {
               return <PlusCircle
                 color={color}
@@ -185,6 +194,7 @@ const MainTabNavigator = () => {
         })}
       >
         <Tab.Screen name="Home" component={HomeStack} />
+        <Tab.Screen name="Search" component={SearchStack} />
 
         {/* The "Create" tab that opens a modal instead of navigating */}
         <Tab.Screen

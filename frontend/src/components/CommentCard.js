@@ -42,7 +42,11 @@ const CommentCard = ({ poll, userComments, onOpenMenu, user }) => {
   };
 
   const handleCommentPress = (commentId) =>
-    navigation.navigate('PollDetails', { pollId: poll.id, highlightCommentId: commentId });
+    navigation.navigate('PollDetails', {
+      pollId: poll.id,
+      highlightCommentId: commentId,
+      poll, // pass entire poll object
+    });
 
   const handleEllipsisPress = () => onOpenMenu && onOpenMenu(poll);
 
@@ -120,7 +124,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 8,               // <-- added for spacing
+    marginRight: 8, 
     borderWidth: 0.5,
     borderColor: 'gray',
   },

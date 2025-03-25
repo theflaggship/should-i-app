@@ -6,12 +6,11 @@ import {
   ActivityIndicator,
   StyleSheet,
   Image,
-  TextInput,
   TouchableOpacity,
   FlatList
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
 import { deletePoll, updatePoll, sendCommentWS, updateComment, deleteComment } from '../services/pollService';
@@ -19,43 +18,46 @@ import PollCard from '../components/PollCard';
 import PollModalsManager from '../components/PollModalsManager';
 import CommentOptionsModal from '../components/CommentOptionsModal';
 import CommentModal from '../components/CommentModal';
+import { getPollById } from '../services/pollService';
 import { getTimeElapsed } from '../../utils/timeConversions';
 import colors from '../styles/colors';
 import { ArrowLeftCircle, MoreHorizontal } from 'react-native-feather';
 
-const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
-
 const PollDetailsScreen = ({ route }) => {
   const { user, token } = useContext(AuthContext);
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
 
-  // Destructure pollId and optional highlightCommentId from route params
-  const { pollId, highlightCommentId } = route.params || {};
+  // Destructure from route
+  const { pollId, highlightCommentId, poll: navPoll } = route.params || {};
 
   // Zustand store
   const polls = usePollsStore((state) => state.polls);
   const removePoll = usePollsStore((state) => state.removePoll);
-
   const loading = usePollsStore((state) => state.loading);
   const error = usePollsStore((state) => state.error);
 
   const [selectedComment, setSelectedComment] = useState(null);
-  const commentOptionsRef = useRef();
   const [editingCommentId, setEditingCommentId] = useState(null);
-
-  // For scrolling to a specific comment
-  const flatListRef = useRef(null);
-
-  // For CommentModal
+  const commentOptionsRef = useRef();
   const addCommentRef = useRef();
   const editCommentRef = useRef();
+  const flatListRef = useRef(null);
 
   // For the PollModalsManager
   const pollModalsRef = useRef(null);
 
-  // Find the poll in the store
-  const poll = polls.find((p) => p.id === pollId);
+  // Local state for full poll data
+  const [pollData, setPollData] = useState(navPoll || null);
+  const storePoll = polls.find(p => p.id === pollId);
+  const poll = storePoll || pollData;
+
+  useEffect(() => {
+    if ((!storePoll && !pollData) || (pollData && (!pollData.options || !pollData.comments))) {
+      getPollById(pollId)
+        .then(fullPoll => setPollData(fullPoll))
+        .catch(err => console.error('Error loading poll details:', err));
+    }
+  }, [pollId, storePoll, pollData]);
 
   // Called by PollCard’s ellipsis if the user is the owner
   const handleOpenMenu = (pollToEdit) => {
@@ -67,7 +69,6 @@ const PollDetailsScreen = ({ route }) => {
     try {
       await deletePoll(token, pollToDelete.id);
       removePoll(pollToDelete.id);
-      // After deleting, go back to the previous screen
       navigation.goBack();
     } catch (err) {
       console.error('Failed to delete poll:', err);
@@ -174,10 +175,10 @@ const PollDetailsScreen = ({ route }) => {
       </View>
     );
   }
-  if (!poll) {
+  if (!poll || !poll.options) {
     return (
       <View style={styles.center}>
-        <Text>No poll found!</Text>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -206,7 +207,7 @@ const PollDetailsScreen = ({ route }) => {
         renderItem={({ item: comment }) => {
           if (!comment) return null;
           const commenter = comment.user ?? {};
-          const name = commenter.displayName ?? commenter.username ?? 'Unknown';
+          const name = commenter.displayName?.trim() || commenter.username || 'Unknown';
           const userPic = commenter.profilePicture || DEFAULT_PROFILE_IMG;
           const isOwner = commenter.id === user.id;
           const isHighlighted = highlightCommentId === comment.id;

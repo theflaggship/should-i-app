@@ -13,6 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { usePollsStore } from '../store/usePollsStore';
+import { sendVoteWS } from '../services/pollService';
+import { useUserStatsStore } from '../store/useUserStatsStore';
 import { deletePoll, updatePoll, sendCommentWS, updateComment, deleteComment } from '../services/pollService';
 import PollCard from '../components/PollCard';
 import PollModalsManager from '../components/PollModalsManager';
@@ -26,43 +28,100 @@ import { ArrowLeftCircle, MoreHorizontal } from 'react-native-feather';
 const PollDetailsScreen = ({ route }) => {
   const { user, token } = useContext(AuthContext);
   const navigation = useNavigation();
+  const { pollId, highlightCommentId } = route.params;
 
-  // Destructure from route
-  const { pollId, highlightCommentId, poll: navPoll } = route.params || {};
-
-  // Zustand store
-  const polls = usePollsStore((state) => state.polls);
-  const removePoll = usePollsStore((state) => state.removePoll);
-  const loading = usePollsStore((state) => state.loading);
-  const error = usePollsStore((state) => state.error);
+  const storePoll = usePollsStore(state => state.polls.find(p => p.id === pollId));
+  const addOrUpdatePoll = usePollsStore(state => state.addOrUpdatePoll);
+  const removePoll = usePollsStore(state => state.removePoll);
+  const loading = usePollsStore(state => state.loading);
+  const error = usePollsStore(state => state.error);
+  
+  const flatListRef = useRef(null);
+  const commentOptionsRef = useRef(null);
+  const addCommentRef = useRef(null);
+  const editCommentRef = useRef(null);
+  const pollModalsRef = useRef(null);
 
   const [selectedComment, setSelectedComment] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
-  const commentOptionsRef = useRef();
-  const addCommentRef = useRef();
-  const editCommentRef = useRef();
-  const flatListRef = useRef(null);
 
-  // For the PollModalsManager
-  const pollModalsRef = useRef(null);
-
-  // Local state for full poll data
-  const [pollData, setPollData] = useState(navPoll || null);
-  const storePoll = polls.find(p => p.id === pollId);
-  const poll = storePoll || pollData;
+  // Local copy (used by your comment logic)
+  const [pollData, setPollData] = useState(storePoll ?? null);
 
   useEffect(() => {
-    if ((!storePoll && !pollData) || (pollData && (!pollData.options || !pollData.comments))) {
-      getPollById(pollId)
-        .then(fullPoll => setPollData(fullPoll))
-        .catch(err => console.error('Error loading poll details:', err));
+    if (storePoll) {
+      setPollData(storePoll);
     }
-  }, [pollId, storePoll, pollData]);
+  }, [storePoll]);
+
+  useEffect(() => {
+    // Always fetch full details on mount—even if storePoll is available
+    getPollById(pollId, token)
+      .then(full => {
+        // Merge existing vote info if available
+        const merged = {
+          ...full,
+          // If our current pollData has a vote (even if full.userVote is null), keep it.
+          userVote: pollData?.userVote ?? full.userVote,
+        };
+        addOrUpdatePoll(merged);
+        setPollData(merged);
+      })
+      .catch(err => console.error('Error loading poll details:', err.message));
+  }, [pollId, token]);
+
+
 
   // Called by PollCard’s ellipsis if the user is the owner
   const handleOpenMenu = (pollToEdit) => {
     pollModalsRef.current?.openMenu(pollToEdit);
   };
+
+  // const handleVote = ({ userId, poll, pollId, optionId }) => {
+  //   if (!userId || !pollId || !poll) return;
+
+  //   // Optimistically update poll state in store
+  //   usePollsStore.setState((state) => {
+  //     const update = (p) => {
+  //       if (p.id !== pollId) return p;
+
+  //       const newOptions = p.options.map((opt) => {
+  //         if (opt.id === optionId) {
+  //           const delta = p.userVote === optionId ? -1 : (p.userVote == null ? 1 : 0);
+  //           return { ...opt, votes: (opt.votes || 0) + delta };
+  //         }
+  //         if (opt.id === p.userVote) {
+  //           return { ...opt, votes: (opt.votes || 0) - 1 };
+  //         }
+  //         return opt;
+  //       });
+
+  //       return {
+  //         ...p,
+  //         options: newOptions,
+  //         userVote: p.userVote === optionId ? null : optionId,
+  //       };
+  //     };
+
+  //     return {
+  //       polls: state.polls.map(update),
+  //       votedPolls: state.votedPolls.map(update),
+  //       followingPolls: state.followingPolls.map(update),
+  //       userPolls: state.userPolls.map(update),
+  //     };
+  //   });
+
+  //   // Update vote stats
+  //   const stats = useUserStatsStore.getState();
+  //   if (poll.userVote === optionId) {
+  //     stats.decrementTotalVotes();
+  //   } else if (poll.userVote == null) {
+  //     stats.incrementTotalVotes();
+  //   }
+
+  //   // Send vote over WebSocket
+  //   sendVoteWS(userId, pollId, optionId);
+  // };
 
   // ============== PollModalsManager callbacks ==============
   const handleDeletePoll = async (pollToDelete) => {
@@ -96,7 +155,7 @@ const PollDetailsScreen = ({ route }) => {
 
   // Add a new comment
   const handleAddComment = (text) => {
-    if (!text?.trim() || !poll) return;
+    if (!text?.trim() || !pollData) return;
     const newComment = {
       id: 'temp-' + Date.now(),
       text: text.trim(),
@@ -110,10 +169,10 @@ const PollDetailsScreen = ({ route }) => {
     };
 
     // Optimistically update store
-    usePollsStore.getState().updateCommentState(poll.id, newComment);
+    usePollsStore.getState().updateCommentState(pollData.id, newComment);
 
     // Send over WS
-    sendCommentWS(user.id, poll.id, text.trim());
+    sendCommentWS(user.id, pollData.id, text.trim());
 
     // Scroll into view
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -128,13 +187,13 @@ const PollDetailsScreen = ({ route }) => {
     ) {
       return;
     }
-  
+
     commentOptionsRef.current.close();
-  
+
     try {
       const updated = await updateComment(editingCommentId, newText.trim(), token);
-      usePollsStore.getState().updateCommentState(poll.id, updated); // update store
-  
+      usePollsStore.getState().updateCommentState(pollData.id, updated); // update store
+
       // ⬇️ Update localPoll/pollData if it's being used
       setPollData((prev) => {
         if (!prev?.comments) return prev;
@@ -150,25 +209,22 @@ const PollDetailsScreen = ({ route }) => {
       setEditingCommentId(null);
     }
   };
-  
-  
+
+
 
   // Scroll & highlight a specific comment if highlightCommentId is provided
   useEffect(() => {
-    if (!poll || !poll.comments) return;
-    if (!highlightCommentId) return;
-
-    const idx = poll.comments.findIndex((c) => c.id === highlightCommentId);
-    if (idx > -1 && flatListRef.current) {
+    if (!pollData?.comments || !highlightCommentId) return;
+  
+    const idx = pollData.comments.findIndex(c => c.id === highlightCommentId);
+    if (idx > -1) {
       setTimeout(() => {
         try {
-          flatListRef.current.scrollToIndex({ index: idx, animated: true });
-        } catch (err) {
-          console.warn('scrollToIndex error:', err);
-        }
+          flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+        } catch {}
       }, 300);
     }
-  }, [poll, highlightCommentId]);
+  }, [pollData, highlightCommentId]);
 
   // ================= Render UI =================
   if (loading) {
@@ -185,7 +241,14 @@ const PollDetailsScreen = ({ route }) => {
       </View>
     );
   }
-  if (!poll || !poll.options) {
+  if (!pollData || !pollData.options) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+  if (!pollData || !pollData.options || pollData.userVote === undefined) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -205,29 +268,29 @@ const PollDetailsScreen = ({ route }) => {
 
       {/* Poll Card with bottom row ellipsis if owner */}
       <View style={styles.pollCardContainer}>
-        <PollCard poll={poll} showDetailedTimestamp onOpenMenu={handleOpenMenu} />
+        <PollCard poll={pollData} showDetailedTimestamp onOpenMenu={handleOpenMenu} />
       </View>
 
       {/* Comments List */}
       <FlatList
         ref={flatListRef}
         style={styles.commentsList}
-        data={poll.comments || []}
+        data={pollData.comments || []}
         keyExtractor={(comment) => comment.id.toString()}
         renderItem={({ item: comment }) => {
           if (!comment) return null;
           const commenter = comment.user ?? {};
           const name = commenter.displayName?.trim() || commenter.username || 'Unknown';
-          const userPic = commenter.profilePicture || DEFAULT_PROFILE_IMG;
+          const userPic = commenter.profilePicture
           const isOwner = commenter.id === user.id;
           const isHighlighted = highlightCommentId === comment.id;
-        
+
           return (
             <View style={styles.commentItem}>
               <TouchableOpacity onPress={() => commenter.id && navigation.navigate('OtherUserProfile', { userId: commenter.id })}>
                 <Image source={{ uri: userPic }} style={styles.commentProfileImage} />
               </TouchableOpacity>
-        
+
               <View style={[styles.commentContent, isHighlighted && styles.highlightedComment]}>
                 <View style={styles.commentHeader}>
                   <TouchableOpacity onPress={() => commenter.id && navigation.navigate('OtherUserProfile', { userId: commenter.id })}>
@@ -235,10 +298,10 @@ const PollDetailsScreen = ({ route }) => {
                   </TouchableOpacity>
                   <Text style={styles.commentTimestamp}>{getTimeElapsed(comment.createdAt)}</Text>
                 </View>
-        
+
                 <Text style={styles.commentText}>{comment.text}</Text>
                 {comment.edited && <Text style={styles.editedLabel}>Edited</Text>}
-        
+
                 {isOwner && (
                   <TouchableOpacity style={styles.commentOptionsIcon} onPress={() => {
                     setSelectedComment(comment);
@@ -254,7 +317,7 @@ const PollDetailsScreen = ({ route }) => {
       />
 
       {/* Comment Input if allowComments */}
-      {poll.allowComments && (
+      {pollData.allowComments && (
         <TouchableOpacity style={styles.commentInputContainer} onPress={() => addCommentRef.current.open()}>
           <View style={styles.commentInputContainer}>
             <View style={styles.commentInput}>
@@ -283,7 +346,7 @@ const PollDetailsScreen = ({ route }) => {
                 text: 'Delete', style: 'destructive', onPress: async () => {
                   commentOptionsRef.current.close();
                   await deleteComment(selectedComment.id, token);
-                  usePollsStore.getState().removeComment(poll.id, selectedComment.id);
+                  usePollsStore.getState().removeComment(pollData.id, selectedComment.id);
                 }
               }
             ]
@@ -294,7 +357,7 @@ const PollDetailsScreen = ({ route }) => {
       {/* Poll Modals Manager */}
       <PollModalsManager
         ref={pollModalsRef}
-        onDeletePoll={handleDeletePoll}
+        onDeletePoll={() => handleDeletePoll(pollData)}
         onSavePoll={handleSavePoll}
       />
 

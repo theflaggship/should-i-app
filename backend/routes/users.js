@@ -10,7 +10,8 @@ router.put('/:id', verifyToken, checkSameUser, userController.updateUserProfile)
 router.get('/:id/polls', verifyToken, userController.getUserPolls);
 router.get('/:id/votes', verifyToken, userController.getUserVotes);
 router.get('/:id/comments', verifyToken, userController.getUserComments);
-router.get('/:id/stats', verifyToken, userController.getUserStats);
+router.get('/:id/suggested', verifyToken, userController.getSuggestedUsers);
+router.get('/:id/stats', verifyToken, userController.getUserStats)
 // router.post('/users/upload-url', verifyToken, getPresignedUrl);
 // router.put('/users/profile-picture', verifyToken, updateProfilePicture);
 

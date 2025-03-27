@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
 import { usePollsStore } from '../../store/usePollsStore'; // <--- 1) import here
 import PollCard from '../../components/PollCard';
@@ -80,13 +81,16 @@ const HomeScreen = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // On mount: load the first page for "Discover"
   // ─────────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (token) {
-      fetchAllPollsPage(token, discoverPageSize, 0).catch((err) => {
-        console.error('Initial discover fetch error:', err);
-      });
-    }
-  }, [token, discoverPageSize, fetchAllPollsPage]);
+  
+  useFocusEffect(
+    React.useCallback(() => {
+      if (token && polls.length === 0) {
+        fetchAllPollsPage(token, discoverPageSize, 0)
+          .catch((err) => console.error('Initial discover fetch error:', err));
+      }
+    }, [token, discoverPageSize, polls.length])
+  );
+  
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Switch tabs

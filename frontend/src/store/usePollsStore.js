@@ -792,6 +792,23 @@ export const usePollsStore = create((set, get) => ({
     }));
   },
 
+  addOrUpdatePoll: (incoming) => set((state) => {
+    const exists = state.polls.find((p) => p.id === incoming.id);
+    if (!exists) return { polls: [incoming, ...state.polls] };
+  
+    const updatedPolls = state.polls.map((p) =>
+      p.id === incoming.id ? { ...p, ...incoming } : p
+    );
+    return { polls: updatedPolls };
+  }),
+
+  hydratePoll: (poll) =>
+    set((state) => {
+      const exists = state.polls.find((p) => p.id === poll.id);
+      if (exists) return {};
+      return { polls: [poll, ...state.polls] };
+    }),
+
   // ─────────────────────────────────────────────────────────────────────────────
   // initPolls: called once on app startup or screen mount
   // ─────────────────────────────────────────────────────────────────────────────
@@ -807,4 +824,26 @@ export const usePollsStore = create((set, get) => ({
       get().updateCommentState(pollId, comment);
     });
   },
+
+  hydratePollsByIds: async (ids) => {
+    const results = await Promise.all(ids.map(id => getPollById(id, get().token)));
+    set(state => {
+      const others = state.polls.filter(p => !ids.includes(p.id));
+      return { polls: [...others, ...results] };
+    });
+  },
+
+  /**
+ * Merge new polls into store without reordering Discover feed.
+ */
+upsertPolls: (incomingPolls) =>
+  set((state) => {
+    const existing = [...state.polls];
+    incomingPolls.forEach((newPoll) => {
+      const idx = existing.findIndex((p) => p.id === newPoll.id);
+      if (idx > -1) existing[idx] = newPoll;
+      else existing.push(newPoll);
+    });
+    return { polls: existing };
+  }),
 }));

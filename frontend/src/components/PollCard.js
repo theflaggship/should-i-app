@@ -12,6 +12,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { sendVoteWS } from '../services/pollService';
+import { usePollsStore } from '../store/usePollsStore';
 import { useUserStatsStore } from '../store/useUserStatsStore';
 import { MessageCircle, Check, MoreHorizontal } from 'react-native-feather';
 import { getTimeElapsed, formatDetailedDate } from '../../utils/timeConversions';
@@ -22,9 +23,9 @@ const DEFAULT_PROFILE_IMG = 'https://picsum.photos/200/200';
 const PollCard = ({
   poll,
   onVote,
+  onOpenMenu,
   disableMainPress = false,
   showDetailedTimestamp = false,
-  onOpenMenu,
 }) => {
   const route = useRoute();
   const navigation = useNavigation();
@@ -140,27 +141,61 @@ const PollCard = ({
   // Option press => vote or unvote logic
   const handleOptionPress = (optionId) => {
     if (!user?.id) return;
-
+  
+    const pollId = poll.id;
+  
+    // Optimistically update local state
+    usePollsStore.setState((state) => {
+      const update = (p) => {
+        if (p.id !== pollId) return p;
+  
+        let newOptions = p.options.map((opt) => {
+          // Clone option
+          const optClone = { ...opt };
+  
+          // Remove existing vote
+          if (p.userVote === opt.id) {
+            optClone.votes = (opt.votes || 1) - 1;
+          }
+  
+          // Add new vote
+          if (optionId === opt.id && p.userVote !== optionId) {
+            optClone.votes = (opt.votes || 0) + 1;
+          }
+  
+          return optClone;
+        });
+  
+        return {
+          ...p,
+          userVote: p.userVote === optionId ? null : optionId,
+          options: newOptions,
+        };
+      };
+  
+      return {
+        polls: state.polls.map(update),
+        userPolls: state.userPolls.map(update),
+        votedPolls: state.votedPolls.map(update),
+        followingPolls: state.followingPolls.map(update),
+      };
+    });
+  
+    // Adjust vote count
     if (poll.userVote === optionId) {
-      // Removing the vote
       useUserStatsStore.getState().decrementTotalVotes();
-      if (onVote) {
-        onVote(poll.id, optionId);
-      } else {
-        sendVoteWS(user.id, poll.id, optionId);
-      }
+    } else if (poll.userVote == null) {
+      useUserStatsStore.getState().incrementTotalVotes();
+    }
+  
+    // Send vote to backend
+    if (onVote) {
+      onVote(pollId, optionId);
     } else {
-      // Adding or changing a vote
-      if (poll.userVote == null) {
-        useUserStatsStore.getState().incrementTotalVotes();
-      }
-      if (onVote) {
-        onVote(poll.id, optionId);
-      } else {
-        sendVoteWS(user.id, poll.id, optionId);
-      }
+      sendVoteWS(user.id, pollId, optionId);
     }
   };
+  
 
   // Navigation
   const handleNavigateToDetails = () => {
@@ -246,7 +281,7 @@ const PollCard = ({
         <Text style={styles.question}>{poll.question || 'No question'}</Text>
 
         <View style={styles.optionsContainer}>
-          {pollOptions.map((option, index) => {
+          {(pollOptions || []).map((option, index) => {
             const isVoted = userVote === option.id;
             const votes = option.votes || 0;
             const rawPercent =

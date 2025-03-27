@@ -56,8 +56,12 @@ export const getFollowingPollsPaginated = async (token, limit, offset) => {
   }
 };
 
-export const getPollById = async (pollId) => {
-  const response = await api.get(`/polls/${pollId}`);
+export const getPollById = async (pollId, token) => {
+  const response = await api.get(`/polls/${pollId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
   return response.data;
 };
 

@@ -1,4 +1,5 @@
 // userController.js
+const { Op } = require('sequelize');
 const { User, Poll, Vote, Comment, PollOption, Follow } = require('../models');
 
 // GET /api/users/:id - Retrieve a user profile (excluding password)
@@ -372,6 +373,60 @@ exports.getUserVotes = async (req, res, next) => {
       totalCount,
       votes: results,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/users/:id/suggested - Suggested users to follow
+// ✅ Step 3: SUGGESTED USERS API
+
+// In your userController.js (add at the bottom)
+exports.getSuggestedUsers = async (req, res, next) => {
+  try {
+    const loggedInUserId = req.user.id;
+
+    // 1) Get IDs the logged-in user already follows
+    const currentFollows = await Follow.findAll({
+      where: { followerId: loggedInUserId },
+      attributes: ['followingId']
+    });
+    const followingIds = currentFollows.map(f => f.followingId);
+
+    // 2) Get followers of the logged-in user
+    const followersOfMe = await Follow.findAll({
+      where: { followingId: loggedInUserId },
+      attributes: ['followerId']
+    });
+    const followerIds = followersOfMe.map(f => f.followerId);
+
+    // 3) From those followers, find who THEY follow (excluding the logged-in user)
+    const extendedFollows = await Follow.findAll({
+      where: {
+        followerId: followerIds,
+        followingId: { [Op.notIn]: [...followingIds, loggedInUserId] }
+      },
+      attributes: ['followingId']
+    });
+    const suggestedIds = [...new Set(extendedFollows.map(f => f.followingId))];
+
+    // 4) Fetch User data for suggested IDs
+    const suggestedUsers = await User.findAll({
+      where: { id: suggestedIds },
+      attributes: ['id', 'username', 'displayName', 'profilePicture', 'personalSummary']
+    });
+
+    // 5) Annotate with whether loggedInUser follows them (all will be false)
+    const annotated = suggestedUsers.map(u => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      profilePicture: u.profilePicture,
+      personalSummary: u.personalSummary,
+      amIFollowing: false,
+    }));
+
+    res.status(200).json(annotated);
   } catch (error) {
     next(error);
   }

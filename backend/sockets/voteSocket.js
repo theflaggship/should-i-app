@@ -4,17 +4,13 @@ const WebSocket = require('ws');
 
 const setupVoteSocket = (wss) => {
   wss.on('connection', (ws, request) => {
-    // If this is "/comments", skip vote logic
-    if (request.url === '/comments') {
-      return;
-    }
+    if (request.url === '/comments') return;
 
     console.log('Client connected to Vote WebSocket');
 
-    // Handle socket errors so they don't crash the server
     ws.on('error', (err) => {
       console.error('Vote WebSocket error on a client:', err);
-      ws.close(); // gracefully close
+      ws.close();
     });
 
     ws.on('message', async (rawMessage) => {
@@ -25,26 +21,26 @@ const setupVoteSocket = (wss) => {
           return;
         }
 
-        // 1) Check if user already voted in this poll
         let existingVote = await Vote.findOne({ where: { userId, pollId } });
+
         if (existingVote) {
-          // Already voted
           if (existingVote.pollOptionId === pollOptionId) {
             // Unvote
             await existingVote.destroy();
 
-            const sameOption = await PollOption.findByPk(pollOptionId);
-            if (sameOption) {
-              sameOption.votes = Math.max(sameOption.votes - 1, 0);
-              await sameOption.save();
+            const option = await PollOption.findByPk(pollOptionId);
+            if (option) {
+              option.votes = Math.max(option.votes - 1, 0);
+              await option.save();
             }
           } else {
-            // Switch vote
+            // Change vote
             const oldOption = await PollOption.findByPk(existingVote.pollOptionId);
             if (oldOption) {
               oldOption.votes = Math.max(oldOption.votes - 1, 0);
               await oldOption.save();
             }
+
             existingVote.pollOptionId = pollOptionId;
             await existingVote.save();
 
@@ -55,7 +51,7 @@ const setupVoteSocket = (wss) => {
             }
           }
         } else {
-          // No existing vote => create
+          // New vote
           await Vote.create({ userId, pollId, pollOptionId });
 
           const option = await PollOption.findByPk(pollOptionId);
@@ -65,7 +61,7 @@ const setupVoteSocket = (wss) => {
           }
         }
 
-        // 2) Broadcast updated poll data
+        // Fetch updated poll
         const poll = await Poll.findByPk(pollId, {
           include: [
             {
@@ -77,16 +73,13 @@ const setupVoteSocket = (wss) => {
           ],
         });
 
-        // Figure out the user's current vote (if any)
         let userVote = null;
-        const finalVote = await Vote.findOne({ where: { userId, pollId } });
-        if (finalVote) {
-          userVote = finalVote.pollOptionId;
-        }
+        const latestVote = await Vote.findOne({ where: { userId, pollId } });
+        if (latestVote) userVote = latestVote.pollOptionId;
 
         const updatedPollData = JSON.stringify({
           pollId: poll.id,
-          userVote, // <-- Now we include the user's voted option
+          userVote,
           options: poll.options.map((opt) => ({
             id: opt.id,
             text: opt.optionText,
@@ -94,7 +87,7 @@ const setupVoteSocket = (wss) => {
           })),
         });
 
-        // Broadcast to all connected clients
+        // Broadcast to all clients
         wss.clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
             try {

@@ -60,6 +60,22 @@ export const getUserVotesPaginated = async (userId, token, limit = 10, offset = 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SUGGESTED USERS FOR SEARCH
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getSuggestedUsers = async (userId, token) => {
+  try {
+    const res = await api.get(`/users/${userId}/suggested`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data;
+  } catch (err) {
+    console.error('getSuggestedUsers error:', err.response?.data || err.message);
+    throw err;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // USER STATS, PROFILE, ETC.
 // ─────────────────────────────────────────────────────────────────────────────
 export const getUserStats = async (userId, token) => {
